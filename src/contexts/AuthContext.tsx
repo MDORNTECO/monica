@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
+import { User, signInWithPopup, signOut as firebaseSignOut, onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
 import { auth, googleProvider } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
+  signInWithUsername: (username: string, pass: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -32,6 +33,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signInWithUsername = async (username: string, pass: string) => {
+    try {
+      // Como o Firebase exige um e-mail, mapeamos o usuário para um e-mail fictício internamente
+      const email = `${username.toLowerCase().trim()}@agendamonica.com`;
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      console.error("Error signing in with username:", error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       await firebaseSignOut(auth);
@@ -42,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithUsername, signOut }}>
       {children}
     </AuthContext.Provider>
   );

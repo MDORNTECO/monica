@@ -7,7 +7,9 @@ service cloud.firestore {
       allow read, write: if false; 
     }
 
-    function isSignedIn() { return request.auth != null && request.auth.token.email_verified == true; }
+    function isSignedIn() { 
+      return request.auth != null && (request.auth.token.email_verified == true || request.auth.token.email.matches('.*@agendamonica\\.com$')); 
+    }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
