@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "client": {
+      "title": "Client",
+      "description": "A customer of the salesperson",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "name", "createdAt", "updatedAt"]
+    },
+    "sale": {
+      "title": "Sale",
+      "description": "A sale transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "brand": { "type": "string", "enum": ["Eudora", "Tupperware"] },
+        "date": { "type": "string" },
+        "monthYear": { "type": "string" },
+        "description": { "type": "string" },
+        "totalValue": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "installmentsCount": { "type": "number" },
+        "paidValue": { "type": "number" },
+        "remainingValue": { "type": "number" },
+        "status": { "type": "string", "enum": ["pendente", "pago_parcial", "pago", "atrasado"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "clientId", "brand", "date", "monthYear", "totalValue", "createdAt", "updatedAt"]
+    },
+    "installment": {
+      "title": "Installment",
+      "description": "A payment installment for a sale",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "saleId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "brand": { "type": "string" },
+        "number": { "type": "number" },
+        "amount": { "type": "number" },
+        "dueDate": { "type": "string" },
+        "dueDateMs": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "remainingAmount": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "saleId", "clientId", "amount", "dueDate", "createdAt", "updatedAt"]
+    },
+    "payment": {
+      "title": "Payment",
+      "description": "A payment record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "saleId": { "type": "string" },
+        "installmentId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "method": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "saleId", "installmentId", "amount", "date", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "clients": {
+      "schema": "client",
+      "description": "Stores client details"
+    },
+    "sales": {
+      "schema": "sale",
+      "description": "Stores sale transactions"
+    },
+    "installments": {
+      "schema": "installment",
+      "description": "Stores installments for sales"
+    },
+    "payments": {
+      "schema": "payment",
+      "description": "Stores actual payments made"
+    }
+  }
+}
