@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { parseISO, isThisWeek, isThisMonth, isToday, isPast, isFuture, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, Plus, AlertCircle, Clock, CheckCircle2, TrendingUp, Package } from 'lucide-react';
+import { parseISO, isThisWeek, isThisMonth, isSameMonth, isToday, isPast, isFuture, startOfDay, format, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Plus, AlertCircle, Clock, CheckCircle2, TrendingUp, Package, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Installment, Sale, Client } from '../types';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
+import { Input } from '../components/ui/Input';
 
 export default function DashboardPage() {
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedMonthStr, setSelectedMonthStr] = useState(format(startOfDay(new Date()), 'yyyy-MM'));
 
   useEffect(() => {
     async function loadData() {
@@ -32,7 +35,10 @@ export default function DashboardPage() {
   if (loading) return <div className="p-8 text-center text-slate-500">Carregando resumo...</div>;
 
   const pendingInst = installments.filter(i => i.status !== 'pago');
-  const today = startOfDay(new Date());
+  const selectedMonth = parseISO(`${selectedMonthStr}-01`);
+
+  const handlePrevMonth = () => setSelectedMonthStr(format(subMonths(selectedMonth, 1), 'yyyy-MM'));
+  const handleNextMonth = () => setSelectedMonthStr(format(addMonths(selectedMonth, 1), 'yyyy-MM'));
 
   let weekTotal = 0;
   let monthTotal = 0;
@@ -40,14 +46,21 @@ export default function DashboardPage() {
   let todayTotal = 0;
   let totalEudora = 0;
   let totalTupperware = 0;
+  let totalToReceiveAllTime = 0;
   const overdueInst: Installment[] = [];
   const todayInst: Installment[] = [];
 
   pendingInst.forEach(inst => {
     const due = parseISO(inst.dueDate);
     
+    totalToReceiveAllTime += inst.remainingAmount;
+
     if (isThisWeek(due)) weekTotal += inst.remainingAmount;
-    if (isThisMonth(due)) monthTotal += inst.remainingAmount;
+    if (isSameMonth(due, selectedMonth)) {
+      monthTotal += inst.remainingAmount;
+      if (inst.brand === 'Eudora') totalEudora += inst.remainingAmount;
+      if (inst.brand === 'Tupperware') totalTupperware += inst.remainingAmount;
+    }
     
     if (isPast(due) && !isToday(due)) {
       overdueTotal += inst.remainingAmount;
@@ -56,9 +69,6 @@ export default function DashboardPage() {
       todayTotal += inst.remainingAmount;
       todayInst.push(inst);
     }
-
-    if (inst.brand === 'Eudora') totalEudora += inst.remainingAmount;
-    if (inst.brand === 'Tupperware') totalTupperware += inst.remainingAmount;
   });
 
   return (
@@ -82,7 +92,18 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        {/* Total a Receber Geral */}
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm col-span-1 md:col-span-2 lg:col-span-1">
+          <div className="flex items-center gap-2 mb-1 text-slate-400">
+            <Wallet className="w-4 h-4" />
+            <p className="text-xs font-bold uppercase tracking-wider">Total Geral</p>
+          </div>
+          <p className="text-2xl font-black text-slate-800">
+            {totalToReceiveAllTime.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </p>
+        </div>
+
         {/* Receber na Semana */}
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
           <p className="text-xs text-slate-400 font-bold uppercase mb-1">A receber (Semana)</p>
@@ -92,9 +113,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Receber no Mês */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
-          <p className="text-xs text-slate-400 font-bold uppercase mb-1">A receber (Mês)</p>
-          <p className="text-2xl font-black text-slate-800">
+        <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm relative group">
+          <div className="flex flex-col mb-1 gap-1">
+            <p className="text-xs text-indigo-400 font-bold uppercase whitespace-nowrap">A receber no Mês</p>
+            <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-indigo-100 px-1 py-0.5">
+              <button title="Mês anterior" onClick={handlePrevMonth} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
+              <span className="text-xs font-bold text-slate-600 uppercase px-1 text-center">
+                {format(selectedMonth, 'MMM/yy', { locale: ptBR })}
+              </span>
+              <button title="Próximo mês" onClick={handleNextMonth} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded hover:bg-slate-50"><ChevronRight className="w-4 h-4" /></button>
+            </div>
+          </div>
+          <p className="text-2xl font-black text-indigo-700 mt-2">
             {monthTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </p>
         </div>
@@ -107,7 +137,7 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Total Recebido (Placeholder or maybe totalPaid overall) */}
+        {/* Hoje a receber */}
         <div className="bg-green-50 p-5 rounded-2xl border border-green-100">
           <p className="text-xs text-green-400 font-bold uppercase mb-1">Hoje a receber</p>
           <p className="text-2xl font-black text-green-600">

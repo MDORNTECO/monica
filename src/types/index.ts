@@ -1,5 +1,6 @@
 export interface Client {
   id: string;
+  userId: string;
   name: string;
   phone: string;
   createdAt: number;
@@ -11,6 +12,7 @@ export type PaymentStatus = 'pendente' | 'pago_parcial' | 'pago' | 'atrasado';
 
 export interface Sale {
   id: string;
+  userId: string;
   clientId: string;
   brand: Brand;
   date: string; // YYYY-MM-DD
@@ -29,6 +31,7 @@ export interface Sale {
 
 export interface Installment {
   id: string;
+  userId: string;
   saleId: string;
   clientId: string;
   brand: Brand;
@@ -45,6 +48,7 @@ export interface Installment {
 
 export interface Payment {
   id: string;
+  userId: string;
   saleId: string;
   installmentId: string;
   clientId: string;

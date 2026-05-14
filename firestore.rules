@@ -42,8 +42,8 @@ service cloud.firestore {
              data.userId == request.auth.uid &&
              data.saleId is string && data.saleId.size() > 0 && data.saleId.size() <= 128 &&
              data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128 &&
-             data.amount is number && data.amount >= 0 &&
-             data.dueDate is string && data.dueDate.size() <= 50 &&
+             (data.amount is number || data.amount is string) &&
+             data.dueDate is string && data.dueDate.size() <= 60 &&
              data.createdAt is number && data.updatedAt is number;
     }
 

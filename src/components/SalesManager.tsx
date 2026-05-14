@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, MoreVertical, CreditCard, ChevronDown, ChevronUp } from 'lucide-react';
 import { dbService } from '../services/db';
-import { Sale, Brand, Client, Installment } from '../types';
+import { Sale, Brand, Client, Installment, Payment } from '../types';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
@@ -55,9 +55,75 @@ export default function SalesManager({ brand }: Props) {
     loadData();
   }, [brand]);
 
+  const [saleToEdit, setSaleToEdit] = useState<Sale | null>(null);
+  const [editSaleDesc, setEditSaleDesc] = useState('');
+  const [editSaleTotal, setEditSaleTotal] = useState('');
+  const [editSaleAction, setEditSaleAction] = useState<'redistribute' | 'new_installment' | 'none'>('none');
+  
+  const [instToEdit, setInstToEdit] = useState<Installment | null>(null);
+  const [editInstAmount, setEditInstAmount] = useState('');
+  
+  async function handleEditSaleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!saleToEdit) return;
+    
+    // Convert comma to dot
+    const newTotal = parseFloat(editSaleTotal.replace(',', '.')) || saleToEdit.totalValue;
+
+    if (newTotal !== saleToEdit.totalValue) {
+       await dbService.updateSaleAdvanced(saleToEdit.id, newTotal, editSaleDesc, editSaleAction);
+    } else {
+       await dbService.updateSale(saleToEdit.id, {
+         description: editSaleDesc
+       });
+    }
+    
+    setSaleToEdit(null);
+    setEditSaleAction('none');
+    loadData();
+  }
+
+  function openEditSale(sale: Sale) {
+    setSaleToEdit(sale);
+    setEditSaleDesc(sale.description);
+    setEditSaleTotal(sale.totalValue.toString());
+    setEditSaleAction('none');
+  }
+
+  async function handleEditInstSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!instToEdit) return;
+
+    await dbService.updateInstallment(instToEdit.id, {
+      amount: parseFloat(editInstAmount) || instToEdit.amount
+    });
+
+    setInstToEdit(null);
+    loadData();
+  }
+
+  function openEditInst(inst: Installment) {
+    setInstToEdit(inst);
+    setEditInstAmount(inst.amount.toString());
+  }
+
+  const [recentlyDeleted, setRecentlyDeleted] = useState<{sale: Sale | null, installments: Installment[], payments: Payment[]} | null>(null);
+
   async function handleDeleteSale(saleId: string) {
-    await dbService.deleteSale(saleId);
+    const deleted = await dbService.deleteSale(saleId);
+    if (deleted) {
+      setRecentlyDeleted(deleted);
+      // Auto-hide undo after 10 seconds
+      setTimeout(() => setRecentlyDeleted(null), 10000);
+    }
     setSaleToDelete(null);
+    loadData();
+  }
+
+  async function handleUndoDelete() {
+    if (!recentlyDeleted) return;
+    await dbService.restoreSale(recentlyDeleted);
+    setRecentlyDeleted(null);
     loadData();
   }
 
@@ -123,6 +189,18 @@ export default function SalesManager({ brand }: Props) {
         </Button>
       </div>
 
+      {recentlyDeleted && (
+        <div className="bg-slate-800 text-white p-4 rounded-xl shadow-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+          <span>A venda foi excluída. Pressione Restaurar caso tenha sido um erro.</span>
+          <button 
+            onClick={handleUndoDelete}
+            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+          >
+            Restaurar Venda
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Carregando...</div>
@@ -161,6 +239,16 @@ export default function SalesManager({ brand }: Props) {
                     <div className="flex items-center gap-2">
                         <button 
                             type="button"
+                            onClick={(e) => { e.stopPropagation(); openEditSale(sale); }}
+                            className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors sm:opacity-0 sm:group-hover:opacity-100"
+                            title="Editar Venda"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                        </button>
+                        <button 
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setSaleToDelete(sale.id); }}
                             className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors sm:opacity-0 sm:group-hover:opacity-100"
                             title="Excluir Venda"
@@ -187,12 +275,33 @@ export default function SalesManager({ brand }: Props) {
                                 {inst.number}
                               </span>
                               <div>
-                                <p className="font-medium text-slate-800">{inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                {inst.status === 'pago_parcial' ? (
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-slate-400 line-through text-sm">
+                                      {inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </p>
+                                    <p className="font-bold text-amber-600">
+                                      {inst.remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} restando
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p className="font-medium text-slate-800">{inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                                )}
                                 <p className="text-xs text-slate-500">Vencimento: {new Date(inst.dueDate).toLocaleDateString('pt-BR')}</p>
                               </div>
                             </div>
                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                               <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                              <button 
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openEditInst(inst); }}
+                                className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Editar Parcela"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
                               {inst.status !== 'pago' && (
                                 <PaymentModalButton inst={inst} onReload={loadData} colorClass={colorClass} isEudora={isEudora} />
                               )}
@@ -301,6 +410,69 @@ export default function SalesManager({ brand }: Props) {
             </div>
         </div>
       </Modal>
+
+      <Modal isOpen={!!saleToEdit} onClose={() => setSaleToEdit(null)} title="Editar Venda">
+        <form onSubmit={handleEditSaleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Descrição dos Produtos</label>
+            <textarea 
+              rows={3} 
+              required 
+              value={editSaleDesc} 
+              onChange={e => setEditSaleDesc(e.target.value)} 
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all resize-none"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Valor Total (R$)</label>
+            <Input required type="number" step="0.01" min="0.01" value={editSaleTotal} onChange={e => setEditSaleTotal(e.target.value)} />
+            
+            {saleToEdit && parseFloat(editSaleTotal.replace(',', '.')) !== saleToEdit.totalValue && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
+                <p className="text-sm text-amber-800 font-medium">
+                  {parseFloat(editSaleTotal.replace(',', '.')) > saleToEdit.totalValue 
+                    ? `O valor total da venda aumentou em ${(parseFloat(editSaleTotal.replace(',', '.')) - saleToEdit.totalValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` 
+                    : `O valor total da venda diminuiu em ${Math.abs(parseFloat(editSaleTotal.replace(',', '.')) - saleToEdit.totalValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`}
+                  Como deseja ajustar as parcelas pendentes?
+                </p>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="redistribute" checked={editSaleAction === 'redistribute'} onChange={() => setEditSaleAction('redistribute')} />
+                    <span className="text-sm text-amber-900">Distribuir diferença entre parcelas pendentes</span>
+                  </label>
+                  {parseFloat(editSaleTotal.replace(',', '.')) > saleToEdit.totalValue && (
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="new_installment" checked={editSaleAction === 'new_installment'} onChange={() => setEditSaleAction('new_installment')} />
+                      <span className="text-sm text-amber-900">Criar uma nova parcela com o valor restante no próximo mês</span>
+                    </label>
+                  )}
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="none" checked={editSaleAction === 'none'} onChange={() => setEditSaleAction('none')} />
+                    <span className="text-sm text-amber-900">Não alterar as parcelas (apenas atualizar total)</span>
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setSaleToEdit(null)}>Cancelar</Button>
+            <Button type="submit" variant={isEudora ? 'eudora' : 'tupper'}>Salvar Alterações</Button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal isOpen={!!instToEdit} onClose={() => setInstToEdit(null)} title="Editar Parcela">
+        <form onSubmit={handleEditInstSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Novo Valor da Parcela (R$)</label>
+            <Input required type="number" step="0.01" min="0.01" value={editInstAmount} onChange={e => setEditInstAmount(e.target.value)} />
+          </div>
+          <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setInstToEdit(null)}>Cancelar</Button>
+            <Button type="submit" variant={isEudora ? 'eudora' : 'tupper'}>Salvar Parcela</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
@@ -324,12 +496,16 @@ function PaymentModalButton({ inst, onReload, colorClass, isEudora }: { inst: In
   const [amount, setAmount] = useState(inst.remainingAmount.toString());
   const [method, setMethod] = useState('pix');
   const [date, setDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [rollover, setRollover] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const amountNumber = parseFloat(amount.replace(',', '.')) || 0;
+  const isPartial = amountNumber > 0 && amountNumber < inst.remainingAmount;
 
   async function handlePay(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await dbService.registerPayment(inst, parseFloat(amount), method, date, "");
+    await dbService.registerPayment(inst, amountNumber, method, date, "", rollover && isPartial);
     setLoading(false);
     setOpen(false);
     onReload();
@@ -366,6 +542,28 @@ function PaymentModalButton({ inst, onReload, colorClass, isEudora }: { inst: In
               </Select>
             </div>
           </div>
+          
+          {isPartial && (
+            <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex flex-col gap-3">
+              <p className="text-sm text-amber-800">
+                Você informou <b>{amountNumber.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b>. 
+                Restará <b>{(inst.remainingAmount - amountNumber).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</b> pendente.
+              </p>
+              <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-amber-200">
+                <input 
+                  type="checkbox" 
+                  id="rolloverCheckbox" 
+                  checked={rollover} 
+                  onChange={(e) => setRollover(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-amber-600 rounded border-amber-300 focus:ring-amber-500 cursor-pointer"
+                />
+                <label htmlFor="rolloverCheckbox" className="text-sm text-amber-900 cursor-pointer select-none leading-tight">
+                  <span className="block font-bold mb-0.5">Mover saldo atual para o mês seguinte</span>
+                  <span className="text-amber-700 text-xs">Soma o que faltou na próxima parcela. Se não houver, cria uma nova. (Se desmarcado, continua pendente neste mês/atrasado)</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="pt-4 flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -375,6 +573,6 @@ function PaymentModalButton({ inst, onReload, colorClass, isEudora }: { inst: In
           </div>
         </form>
       </Modal>
-    </    >
+    </>
   );
 }

@@ -146,7 +146,18 @@ export default function CalendarPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-slate-800">{inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                      {inst.status === 'pago_parcial' ? (
+                        <div className="flex flex-col items-end">
+                          <p className="text-xs font-medium text-slate-400 line-through">
+                            {inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                          <p className="font-bold text-amber-600">
+                            {inst.remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="font-bold text-slate-800">{inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                      )}
                       <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
                     </div>
                   </div>
