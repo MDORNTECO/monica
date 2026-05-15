@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { parseISO, isThisWeek, isThisMonth, isSameMonth, isToday, isPast, isFuture, startOfDay, format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Plus, AlertCircle, Clock, CheckCircle2, TrendingUp, Package, ChevronLeft, ChevronRight, Wallet } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, AlertCircle, Clock, CheckCircle2, TrendingUp, Package, ChevronLeft, ChevronRight, Wallet, Users } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Installment, Sale, Client } from '../types';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
 
 export default function DashboardPage() {
   const [installments, setInstallments] = useState<Installment[]>([]);
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonthStr, setSelectedMonthStr] = useState(format(startOfDay(new Date()), 'yyyy-MM'));
+  const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -49,6 +51,7 @@ export default function DashboardPage() {
   let totalToReceiveAllTime = 0;
   const overdueInst: Installment[] = [];
   const todayInst: Installment[] = [];
+  const monthInst: Installment[] = [];
 
   pendingInst.forEach(inst => {
     const due = parseISO(inst.dueDate);
@@ -58,6 +61,7 @@ export default function DashboardPage() {
     if (isThisWeek(due)) weekTotal += inst.remainingAmount;
     if (isSameMonth(due, selectedMonth)) {
       monthTotal += inst.remainingAmount;
+      monthInst.push(inst);
       if (inst.brand === 'Eudora') totalEudora += inst.remainingAmount;
       if (inst.brand === 'Tupperware') totalTupperware += inst.remainingAmount;
     }
@@ -113,10 +117,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Receber no Mês */}
-        <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm relative group">
+        <div 
+          onClick={() => setIsMonthModalOpen(true)}
+          className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100 shadow-sm relative group cursor-pointer hover:bg-indigo-100 transition-colors"
+        >
           <div className="flex flex-col mb-1 gap-1">
             <p className="text-xs text-indigo-400 font-bold uppercase whitespace-nowrap">A receber no Mês</p>
-            <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-indigo-100 px-1 py-0.5">
+            <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-indigo-100 px-1 py-0.5" onClick={e => e.stopPropagation()}>
               <button title="Mês anterior" onClick={handlePrevMonth} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors rounded hover:bg-slate-50"><ChevronLeft className="w-4 h-4" /></button>
               <span className="text-xs font-bold text-slate-600 uppercase px-1 text-center">
                 {format(selectedMonth, 'MMM/yy', { locale: ptBR })}
@@ -127,6 +134,9 @@ export default function DashboardPage() {
           <p className="text-2xl font-black text-indigo-700 mt-2">
             {monthTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </p>
+          <div className="absolute top-4 right-4 text-indigo-200 group-hover:text-indigo-300 transition-colors">
+            <Users className="w-5 h-5" />
+          </div>
         </div>
 
         {/* Total Atrasado */}
@@ -223,6 +233,40 @@ export default function DashboardPage() {
         </div>
       </div>
       
+      <Modal isOpen={isMonthModalOpen} onClose={() => setIsMonthModalOpen(false)} title={`A receber em ${format(selectedMonth, 'MMMM', { locale: ptBR })}`}>
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto">
+          {(() => {
+            const monthClientsMap = new Map<string, number>();
+            monthInst.forEach(inst => {
+               const val = monthClientsMap.get(inst.clientId) || 0;
+               monthClientsMap.set(inst.clientId, val + inst.remainingAmount);
+            });
+            
+            const monthClientList = Array.from(monthClientsMap.entries()).map(([clientId, total]) => {
+               const client = clients.find(c => c.id === clientId);
+               return { clientName: client?.name || 'Desconhecido', total };
+            }).sort((a, b) => b.total - a.total);
+
+            if (monthClientList.length === 0) {
+              return <p className="text-center text-slate-500 py-4">Nenhum cliente para este mês.</p>;
+            }
+
+            return (
+              <div className="divide-y divide-slate-100">
+                {monthClientList.map((c, i) => (
+                  <div key={i} className="py-3 flex justify-between items-center">
+                    <p className="font-bold text-slate-700">{c.clientName}</p>
+                    <p className="font-bold text-indigo-600">{c.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+        <div className="pt-4 border-t border-slate-100 flex justify-end">
+          <Button onClick={() => setIsMonthModalOpen(false)}>Fechar</Button>
+        </div>
+      </Modal>
     </div>
   );
 }
