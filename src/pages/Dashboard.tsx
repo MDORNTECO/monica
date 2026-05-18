@@ -15,8 +15,15 @@ export default function DashboardPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notificationPermission, setNotificationPermission] = useState<string>('unsupported');
   const [selectedMonthStr, setSelectedMonthStr] = useState(format(startOfDay(new Date()), 'yyyy-MM'));
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+
+  useEffect(() => {
+    if ('Notification' in window) {
+      setNotificationPermission(Notification.permission);
+    }
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -33,8 +40,6 @@ export default function DashboardPage() {
     }
     loadData();
   }, []);
-
-  if (loading) return <div className="p-8 text-center text-slate-500">Carregando resumo...</div>;
 
   const pendingInst = installments.filter(i => i.status !== 'pago');
   const selectedMonth = parseISO(`${selectedMonthStr}-01`);
@@ -75,8 +80,96 @@ export default function DashboardPage() {
     }
   });
 
+  useEffect(() => {
+    if (!loading && todayInst.length > 0) {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const notifiedKey = `notified_today_${todayStr}`;
+      
+      const sendNotification = () => {
+        new Notification('Aviso Importante! 💰', {
+          body: 'Monica - voce tem valores para receber na data de hoje, verifique!',
+          icon: '/favicon.ico', 
+        });
+        localStorage.setItem(notifiedKey, 'true');
+      };
+
+      if (!localStorage.getItem(notifiedKey)) {
+        if ('Notification' in window) {
+          if (Notification.permission === 'granted') {
+            sendNotification();
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission().then(permission => {
+              if (permission === 'granted') {
+                sendNotification();
+              }
+            });
+          }
+        }
+      }
+    }
+  }, [loading, todayInst.length, todayTotal]);
+
+  if (loading) return <div className="p-8 text-center text-slate-500">Carregando resumo...</div>;
+
   return (
     <div className="space-y-6">
+      {notificationPermission === 'default' && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
+          <p className="text-sm font-medium">Ative as notificações para receber alertas de pagamentos do dia!</p>
+          <button 
+            onClick={() => {
+              Notification.requestPermission().then(perm => {
+                setNotificationPermission(perm);
+                if (perm === 'granted') {
+                  new Notification('Notificações Ativadas! 🎉', {
+                    body: 'Avisaremos você quando tiver recebimentos.',
+                    icon: '/favicon.ico',
+                  });
+                }
+              });
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap"
+          >
+            Ativar Agora
+          </button>
+        </div>
+      )}
+
+      {notificationPermission === 'denied' && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
+          <p className="text-sm font-medium">
+            Notificações bloqueadas. Se você estiver vendo isso dentro do Editor, <strong>abra o app em uma nova aba</strong> (clicando no ícone no canto superior direito do visualizador) para ativar.
+          </p>
+          <button 
+            onClick={() => {
+              if ('Notification' in window) {
+                setNotificationPermission(Notification.permission);
+              }
+            }}
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-amber-700 transition-colors whitespace-nowrap"
+          >
+            Verificar Novamente
+          </button>
+        </div>
+      )}
+
+      {notificationPermission === 'granted' && (
+        <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
+          <p className="text-sm font-medium">As notificações estão ativas no seu navegador! ✅</p>
+          <button 
+            onClick={() => {
+               new Notification('Aviso Importante! 💰', {
+                 body: 'Monica - voce tem valores para receber na data de hoje, verifique!',
+                 icon: '/favicon.ico',
+               });
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-green-700 transition-colors whitespace-nowrap"
+          >
+            Testar Notificação
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 p-6 rounded-2xl shadow-sm text-white">
         <div>
           <div className="flex items-center gap-3">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { dbService } from '../services/db';
 import { Client } from '../types';
-import { Users, Trash2 } from 'lucide-react';
+import { Users, Trash2, Pencil } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
@@ -12,6 +12,11 @@ export default function ManageClientsPage() {
   const [newClientName, setNewClientName] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
+  
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  const [editClientName, setEditClientName] = useState('');
+  const [editClientPhone, setEditClientPhone] = useState('');
+  const [isSavingClient, setIsSavingClient] = useState(false);
 
   async function loadData() {
     setLoading(true);
@@ -43,6 +48,30 @@ export default function ManageClientsPage() {
     setClientToDelete(null);
     loadData();
   }
+
+  const openEditClient = (client: Client) => {
+    setClientToEdit(client);
+    setEditClientName(client.name);
+    setEditClientPhone(client.phone || '');
+  };
+
+  const handleEditClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientToEdit) return;
+    setIsSavingClient(true);
+    try {
+      await dbService.updateClient(clientToEdit.id, {
+        name: editClientName,
+        phone: editClientPhone,
+      });
+      setClientToEdit(null);
+      loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSavingClient(false);
+    }
+  };
 
   if (loading) return <div className="p-8 text-center text-slate-500">Carregando clientes...</div>;
 
@@ -86,15 +115,28 @@ export default function ManageClientsPage() {
                 <div key={client.id} className="p-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
                     <div>
                         <p className="font-bold text-slate-800">{client.name}</p>
-                        {client.phone && <p className="text-sm text-slate-500">{client.phone}</p>}
+                        {client.phone ? (
+                          <p className="text-sm text-slate-500">{client.phone}</p>
+                        ) : (
+                          <p className="text-sm text-slate-400 italic">Sem telefone</p>
+                        )}
                     </div>
-                    <button 
-                        onClick={() => setClientToDelete(client.id)}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Excluir Cliente"
-                    >
-                        <Trash2 className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => openEditClient(client)}
+                            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Editar Cliente"
+                        >
+                            <Pencil className="w-5 h-5" />
+                        </button>
+                        <button 
+                            onClick={() => setClientToDelete(client.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Excluir Cliente"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
             ))}
         </div>
@@ -111,6 +153,35 @@ export default function ManageClientsPage() {
             </div>
         </div>
       </Modal>
+
+      <Modal isOpen={!!clientToEdit} onClose={() => setClientToEdit(null)} title="Editar Cliente">
+        <form onSubmit={handleEditClientSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Nome do Cliente</label>
+            <Input 
+              required 
+              value={editClientName} 
+              onChange={e => setEditClientName(e.target.value)} 
+              placeholder="Ex: Maria Carolina"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Telefone / WhatsApp</label>
+            <Input 
+              value={editClientPhone} 
+              onChange={e => setEditClientPhone(e.target.value)} 
+              placeholder="(11) 99999-9999"
+            />
+          </div>
+          <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setClientToEdit(null)}>Cancelar</Button>
+            <Button type="submit" disabled={isSavingClient}>
+              {isSavingClient ? 'Salvando...' : 'Salvar Alterações'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { Client, Sale, Installment, Payment, PaymentStatus } from '../types';
-import { collection, doc, getDocs, setDoc, deleteDoc, query, where, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, query, where, writeBatch, getDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 
 enum OperationType {
@@ -67,6 +67,17 @@ export const dbService = {
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `clients/${newClient.id}`);
       throw e;
+    }
+  },
+
+  updateClient: async (clientId: string, updates: Partial<Client>): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const now = Date.now();
+      await updateDoc(doc(db, 'clients', clientId), { ...updates, updatedAt: now });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `clients/${clientId}`);
     }
   },
 

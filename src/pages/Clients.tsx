@@ -3,6 +3,8 @@ import { Search, User, Package, ChevronDown, ChevronUp, AlertTriangle } from 'lu
 import { dbService } from '../services/db';
 import { Client, Sale, Installment } from '../types';
 import { Input } from '../components/ui/Input';
+import { Modal } from '../components/ui/Modal';
+import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { differenceInDays } from 'date-fns';
 
@@ -247,6 +249,7 @@ export default function ClientsPage() {
           <div className="p-12 text-center text-slate-400">Nenhum cliente encontrado.</div>
         )}
       </div>
+
     </div>
   );
 }

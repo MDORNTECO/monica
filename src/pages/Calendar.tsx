@@ -70,52 +70,68 @@ export default function CalendarPage() {
         {loading ? (
           <div className="p-12 text-center text-slate-500">Carregando calendário...</div>
         ) : (
-          <div className="p-4">
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-400 mb-2">
-              <div>DOM</div>
-              <div>SEG</div>
-              <div>TER</div>
-              <div>QUA</div>
-              <div>QUI</div>
-              <div>SEX</div>
-              <div>SAB</div>
+          <div>
+            <div className="flex flex-wrap gap-4 items-center text-xs font-medium text-slate-500 px-4 pb-4 border-b border-slate-100 bg-slate-50/50">
+               <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Legenda:</span>
+               <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-purple-500" /> Pendente Eudora</div>
+               <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-teal-500" /> Pendente Tupperware</div>
+               <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-500" /> Pagos</div>
             </div>
-            
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {/* Padding days for first week */}
-              {Array.from({ length: startDate.getDay() }).map((_, i) => (
-                <div key={`empty-${i}`} className="h-10 sm:h-14" />
-              ))}
+            <div className="p-4">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-400 mb-2">
+                <div>DOM</div>
+                <div>SEG</div>
+                <div>TER</div>
+                <div>QUA</div>
+                <div>QUI</div>
+                <div>SEX</div>
+                <div>SAB</div>
+              </div>
               
-              {days.map(day => {
-                const dayInsts = installments.filter(inst => isSameDay(parseISO(inst.dueDate), day));
-                const pendingInsts = dayInsts.filter(i => i.status !== 'pago');
-                const hasAtrasado = pendingInsts.some(i => i.status === 'atrasado');
-                const isSelected = isSameDay(day, selectedDate);
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                {/* Padding days for first week */}
+                {Array.from({ length: startDate.getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} className="h-10 sm:h-14" />
+                ))}
                 
-                return (
-                  <button
-                    key={day.toString()}
-                    onClick={() => setSelectedDate(day)}
-                    className={cn(
-                      "h-10 sm:h-14 flex flex-col items-center justify-center rounded-xl relative transition-colors",
-                      !isSameMonth(day, monthStart) ? "text-slate-300 pointer-events-none" : "text-slate-700",
-                      isToday(day) && !isSelected && "bg-slate-100 font-bold",
-                      isSelected && "bg-slate-900 text-white font-bold hover:bg-slate-800",
-                      !isSelected && isSameMonth(day, monthStart) && "hover:bg-slate-50"
-                    )}
-                  >
-                    <span>{format(day, 'd')}</span>
-                    {dayInsts.length > 0 && (
-                      <div className="flex gap-1 mt-1">
-                        {pendingInsts.map((inst, idx) => (
-                           idx < 3 && <span key={inst.id} className={cn("w-1.5 h-1.5 rounded-full", inst.brand === 'Eudora' ? 'bg-purple-500' : 'bg-teal-500')} />
-                        ))}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
+                {days.map(day => {
+                  const dayInsts = installments.filter(inst => isSameDay(parseISO(inst.dueDate), day));
+                  const pendingInsts = dayInsts.filter(i => i.status !== 'pago');
+                  const hasAtrasado = pendingInsts.some(i => i.status === 'atrasado');
+                  const isSelected = isSameDay(day, selectedDate);
+                  
+                  return (
+                    <button
+                      key={day.toString()}
+                      onClick={() => setSelectedDate(day)}
+                      className={cn(
+                        "h-10 sm:h-14 flex flex-col items-center justify-center rounded-xl relative transition-colors",
+                        !isSameMonth(day, monthStart) ? "text-slate-300 pointer-events-none" : "text-slate-700",
+                        isToday(day) && !isSelected && "bg-slate-100 font-bold",
+                        isSelected && "bg-slate-900 text-white font-bold hover:bg-slate-800",
+                        !isSelected && isSameMonth(day, monthStart) && "hover:bg-slate-50"
+                      )}
+                    >
+                      <span>{format(day, 'd')}</span>
+                      {dayInsts.length > 0 && (
+                        <div className="flex gap-1 mt-1 flex-wrap justify-center items-center">
+                          {dayInsts.slice(0, 3).map((inst, idx) => {
+                             let dotColor = 'bg-slate-300';
+                             if (inst.status === 'pago') dotColor = 'bg-blue-500';
+                             else if (inst.brand === 'Eudora') dotColor = 'bg-purple-500';
+                             else if (inst.brand === 'Tupperware') dotColor = 'bg-teal-500';
+
+                             return (
+                               <span key={inst.id} className={cn("w-1.5 h-1.5 rounded-full", dotColor)} />
+                             );
+                          })}
+                          {dayInsts.length > 3 && <span className="text-[8px] text-slate-400 font-bold leading-none">+{dayInsts.length - 3}</span>}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
