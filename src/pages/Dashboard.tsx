@@ -135,41 +135,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {notificationPermission === 'denied' && (
-        <div className="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
-          <p className="text-sm font-medium">
-            Notificações bloqueadas. Se você estiver vendo isso dentro do Editor, <strong>abra o app em uma nova aba</strong> (clicando no ícone no canto superior direito do visualizador) para ativar.
-          </p>
-          <button 
-            onClick={() => {
-              if ('Notification' in window) {
-                setNotificationPermission(Notification.permission);
-              }
-            }}
-            className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-amber-700 transition-colors whitespace-nowrap"
-          >
-            Verificar Novamente
-          </button>
-        </div>
-      )}
-
-      {notificationPermission === 'granted' && (
-        <div className="bg-green-50 border border-green-200 text-green-800 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between shadow-sm gap-4">
-          <p className="text-sm font-medium">As notificações estão ativas no seu navegador! ✅</p>
-          <button 
-            onClick={() => {
-               new Notification('Aviso Importante! 💰', {
-                 body: 'Monica - voce tem valores para receber na data de hoje, verifique!',
-                 icon: '/favicon.ico',
-               });
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-green-700 transition-colors whitespace-nowrap"
-          >
-            Testar Notificação
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 p-6 rounded-2xl shadow-sm text-white">
         <div>
           <div className="flex items-center gap-3">
