@@ -294,29 +294,36 @@ export default function DashboardPage() {
       <Modal isOpen={isMonthModalOpen} onClose={() => setIsMonthModalOpen(false)} title={`A receber em ${format(selectedMonth, 'MMMM', { locale: ptBR })}`}>
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
           {(() => {
-            const monthClientsMap = new Map<string, number>();
-            monthInst.forEach(inst => {
-               const val = monthClientsMap.get(inst.clientId) || 0;
-               monthClientsMap.set(inst.clientId, val + inst.remainingAmount);
-            });
-            
-            const monthClientList = Array.from(monthClientsMap.entries()).map(([clientId, total]) => {
-               const client = clients.find(c => c.id === clientId);
-               return { clientName: client?.name || 'Desconhecido', total };
-            }).sort((a, b) => b.total - a.total);
-
-            if (monthClientList.length === 0) {
-              return <p className="text-center text-slate-500 py-4">Nenhum cliente para este mês.</p>;
+            if (monthInst.length === 0) {
+              return <p className="text-center text-slate-500 py-4">Nenhum recebimento para este mês.</p>;
             }
+            
+            const sortedInst = [...monthInst].sort((a, b) => parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime());
 
             return (
               <div className="divide-y divide-slate-100">
-                {monthClientList.map((c, i) => (
-                  <div key={i} className="py-3 flex justify-between items-center">
-                    <p className="font-bold text-slate-700">{c.clientName}</p>
-                    <p className="font-bold text-indigo-600">{c.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                  </div>
-                ))}
+                {sortedInst.map((inst) => {
+                   const client = clients.find(c => c.id === inst.clientId);
+                   return (
+                     <div key={inst.id} className="py-3 flex justify-between items-center hover:bg-slate-50 px-2 rounded-lg transition-colors">
+                       <div>
+                         <p className="font-bold text-slate-700">{client?.name || 'Desconhecido'}</p>
+                         <p className="text-xs text-slate-500 mt-0.5">
+                           <span className={inst.brand === 'Eudora' ? "text-purple-600 font-bold" : "text-teal-600 font-bold"}>
+                             {inst.brand}
+                           </span>
+                           <span className="mx-1.5">•</span>
+                           Parcela Nº {inst.number}
+                           <span className="mx-1.5">•</span>
+                           Venc: <span className="font-medium text-slate-600">{format(parseISO(inst.dueDate), 'dd/MM')}</span>
+                         </p>
+                       </div>
+                       <div className="text-right">
+                         <p className="font-black text-indigo-600">{inst.remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                       </div>
+                     </div>
+                   );
+                })}
               </div>
             );
           })()}
