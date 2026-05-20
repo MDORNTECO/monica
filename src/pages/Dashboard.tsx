@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [notificationPermission, setNotificationPermission] = useState<string>('unsupported');
   const [selectedMonthStr, setSelectedMonthStr] = useState(format(startOfDay(new Date()), 'yyyy-MM'));
   const [isMonthModalOpen, setIsMonthModalOpen] = useState(false);
+  const [monthModalTab, setMonthModalTab] = useState<'all' | 'eudora' | 'tupperware'>('all');
 
   useEffect(() => {
     if ('Notification' in window) {
@@ -292,13 +293,54 @@ export default function DashboardPage() {
       </div>
       
       <Modal isOpen={isMonthModalOpen} onClose={() => setIsMonthModalOpen(false)} title={`A receber em ${format(selectedMonth, 'MMMM', { locale: ptBR })}`}>
+        <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
+          <button
+            onClick={() => setMonthModalTab('all')}
+            className={cn(
+               "flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors",
+               monthModalTab === 'all' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Tudo
+          </button>
+          <button
+            onClick={() => setMonthModalTab('eudora')}
+            className={cn(
+               "flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors",
+               monthModalTab === 'eudora' ? "bg-white text-purple-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Eudora
+          </button>
+          <button
+            onClick={() => setMonthModalTab('tupperware')}
+            className={cn(
+               "flex-1 py-1.5 text-sm font-bold rounded-lg transition-colors",
+               monthModalTab === 'tupperware' ? "bg-white text-teal-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            Tupperware
+          </button>
+        </div>
         <div className="space-y-4 max-h-[60vh] overflow-y-auto">
           {(() => {
-            if (monthInst.length === 0) {
-              return <p className="text-center text-slate-500 py-4">Nenhum recebimento para este mês.</p>;
+            const filteredInst = monthInst.filter(inst => {
+               if (monthModalTab === 'eudora') return inst.brand === 'Eudora';
+               if (monthModalTab === 'tupperware') return inst.brand === 'Tupperware';
+               return true;
+            });
+
+            if (filteredInst.length === 0) {
+              return <p className="text-center text-slate-500 py-4">Nenhum recebimento encontrado nesta categoria.</p>;
             }
             
-            const sortedInst = [...monthInst].sort((a, b) => parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime());
+            const sortedInst = [...filteredInst].sort((a, b) => {
+               const clientA = clients.find(c => c.id === a.clientId)?.name.toLowerCase() || '';
+               const clientB = clients.find(c => c.id === b.clientId)?.name.toLowerCase() || '';
+               if (clientA < clientB) return -1;
+               if (clientA > clientB) return 1;
+               return parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime();
+            });
 
             return (
               <div className="divide-y divide-slate-100">
