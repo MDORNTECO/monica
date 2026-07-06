@@ -59,3 +59,28 @@ export interface Payment {
   createdAt: number;
   updatedAt: number;
 }
+
+export interface ConsortiumInstallment {
+  id: string;
+  monthIndex: number;
+  dueDate: string; // YYYY-MM-DD
+  paid: boolean;
+  paidAt?: number;
+}
+
+export interface Consortium {
+  id: string;
+  userId: string;
+  groupType: 'amigos' | 'cartorio';
+  clientType: 'existing' | 'new';
+  clientId: string | null;
+  clientName: string;
+  monthlyValue: number;
+  durationMonths: number;
+  startDate: string;
+  status: 'active' | 'completed';
+  installments: ConsortiumInstallment[];
+  createdAt: number;
+  updatedAt: number;
+}
+

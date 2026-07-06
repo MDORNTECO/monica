@@ -41,6 +41,23 @@ function generateId() {
 export const dbService = {
   getUserId: () => auth.currentUser?.uid,
 
+  logActivity: async (message: string): Promise<void> => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const userName = user.displayName || user.email?.split('@')[0] || 'Usuário';
+    const now = Date.now();
+    try {
+      await setDoc(doc(collection(db, 'activities')), {
+        userId: user.uid,
+        userName,
+        message,
+        createdAt: now
+      });
+    } catch (e) {
+      console.error('Failed to log activity:', e);
+    }
+  },
+
   // Clients
   getClients: async (): Promise<Client[]> => {
     const userId = auth.currentUser?.uid;
@@ -129,6 +146,10 @@ export const dbService = {
       paySnap.forEach(doc => batch.delete(doc.ref));
       
       await batch.commit();
+
+      const user = auth.currentUser;
+      const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+      await dbService.logActivity(`${userName} apagou uma venda de ${saleData?.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} da ${saleData?.brand}.`);
 
       return { sale: saleData, installments: instData, payments: payData };
     } catch (e) {
@@ -377,6 +398,10 @@ export const dbService = {
       }
       
       await batch.commit();
+
+      const user = auth.currentUser;
+      const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+      await dbService.logActivity(`${userName} adicionou uma nova venda de ${sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} da ${sale.brand}.`);
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `sales/${newSale.id}`);
       throw e;
@@ -507,6 +532,115 @@ export const dbService = {
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, `installments/${installment.id}`);
       throw e;
+    }
+  },
+
+  // Consortiums
+  getConsortiums: async (): Promise<any[]> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return [];
+    try {
+      const q = query(collection(db, 'consortiums'), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => doc.data());
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'consortiums');
+      return [];
+    }
+  },
+
+  createConsortium: async (consortium: Omit<any, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'installments' | 'status'>): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    const now = Date.now();
+    const newId = generateId();
+    
+    // Generate installments
+    const installments: any[] = [];
+    const startDate = new Date(consortium.startDate + 'T12:00:00');
+    for (let i = 0; i < consortium.durationMonths; i++) {
+      const dueDate = new Date(startDate);
+      dueDate.setMonth(dueDate.getMonth() + i);
+      installments.push({
+        id: generateId(),
+        monthIndex: i,
+        dueDate: dueDate.toISOString().split('T')[0],
+        paid: false
+      });
+    }
+
+    try {
+      await setDoc(doc(db, 'consortiums', newId), {
+        ...consortium,
+        id: newId,
+        userId,
+        installments,
+        status: 'active',
+        createdAt: now,
+        updatedAt: now
+      });
+      const user = auth.currentUser;
+      const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+      await dbService.logActivity(`${userName} criou um novo consórcio para ${consortium.clientName}.`);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, `consortiums`);
+      throw e;
+    }
+  },
+
+  toggleConsortiumInstallment: async (consortiumId: string, installmentId: string): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    const now = Date.now();
+    try {
+      const ref = doc(db, 'consortiums', consortiumId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const installments = data.installments || [];
+        
+        const instIndex = installments.findIndex((i: any) => i.id === installmentId);
+        if (instIndex !== -1) {
+          const isCurrentlyPaid = installments[instIndex].paid;
+          installments[instIndex].paid = !isCurrentlyPaid;
+          installments[instIndex].paidAt = !isCurrentlyPaid ? now : undefined;
+          
+          let status = 'active';
+          if (installments.every((i: any) => i.paid)) {
+            status = 'completed';
+          }
+          
+          await updateDoc(ref, { installments, status, updatedAt: now });
+
+          const user = auth.currentUser;
+          const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+          const actionWord = !isCurrentlyPaid ? 'marcou como pago' : 'desmarcou';
+          await dbService.logActivity(`${userName} ${actionWord} o mês ${installments[instIndex].monthIndex + 1} do consórcio de ${data.clientName}.`);
+        }
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `consortiums/${consortiumId}`);
+      throw e;
+    }
+  },
+
+  deleteConsortium: async (consortiumId: string): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const ref = doc(db, 'consortiums', consortiumId);
+      const snap = await getDoc(ref);
+      let clientName = 'um cliente';
+      if (snap.exists()) {
+        clientName = snap.data().clientName;
+      }
+      await deleteDoc(ref);
+      
+      const user = auth.currentUser;
+      const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+      await dbService.logActivity(`${userName} excluiu o consórcio de ${clientName}.`);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `consortiums/${consortiumId}`);
     }
   }
 };

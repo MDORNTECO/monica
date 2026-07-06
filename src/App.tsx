@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { Home, Calendar as CalendarIcon, Users, Package, LogOut, UserCog } from 'lucide-react';
+import { Home, Calendar as CalendarIcon, Users, Package, LogOut, UserCog, Video } from 'lucide-react';
 import { cn } from './lib/utils';
 import DashboardPage from './pages/Dashboard';
 import EudoraPage from './pages/Eudora';
@@ -9,6 +9,8 @@ import TupperwarePage from './pages/Tupperware';
 import ClientsPage from './pages/Clients';
 import CalendarPage from './pages/Calendar';
 import ManageClientsPage from './pages/ManageClients';
+import ConsortiumPage from './pages/Consortium';
+import ActivityLogPage from './pages/ActivityLog';
 import Login from './pages/Login';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -26,9 +28,11 @@ function Layout({ children }: { children: React.ReactNode }) {
     { to: "/", icon: Home, label: "Dashboard" },
     { to: "/eudora", icon: Package, label: "Eudora" },
     { to: "/tupperware", icon: Package, label: "Tupper" },
+    { to: "/consortium", icon: Users, label: "Consórcio" },
     { to: "/clients", icon: Users, label: "Consultas" },
     { to: "/manage-clients", icon: UserCog, label: "Clientes" },
     { to: "/calendar", icon: CalendarIcon, label: "Agenda" },
+    { to: "/activity", icon: Users, label: "Histórico" },
   ];
 
   return (
@@ -48,10 +52,12 @@ function Layout({ children }: { children: React.ReactNode }) {
             if (link.to === '/tupperware') hoverColors = "hover:bg-teal-50 hover:text-teal-700";
             if (link.to === '/calendar') hoverColors = "hover:bg-blue-50 hover:text-blue-700";
             if (link.to === '/clients') hoverColors = "hover:bg-orange-50 hover:text-orange-700";
+            if (link.to === '/consortium') hoverColors = "hover:bg-pink-50 hover:text-pink-700";
+            if (link.to === '/activity') hoverColors = "hover:bg-slate-50 hover:text-slate-700";
 
             return (
               <Link key={link.to} to={link.to} className={cn("flex items-center space-x-3 p-3 rounded-xl transition-colors", active ? "bg-slate-100 text-slate-900 font-medium" : `text-slate-600 ${hoverColors}`)}>
-                <link.icon className={cn("w-5 h-5", link.to === '/eudora' && 'text-purple-500', link.to === '/tupperware' && 'text-teal-500')} />
+                <link.icon className={cn("w-5 h-5", link.to === '/eudora' && 'text-purple-500', link.to === '/tupperware' && 'text-teal-500', link.to === '/consortium' && 'text-pink-500')} />
                 <span>{link.label}</span>
               </Link>
             );
@@ -102,6 +108,8 @@ export default function App() {
           <Route path="/clients" element={<PrivateRoute><ClientsPage /></PrivateRoute>} />
           <Route path="/manage-clients" element={<PrivateRoute><ManageClientsPage /></PrivateRoute>} />
           <Route path="/calendar" element={<PrivateRoute><CalendarPage /></PrivateRoute>} />
+          <Route path="/consortium" element={<PrivateRoute><ConsortiumPage /></PrivateRoute>} />
+          <Route path="/activity" element={<PrivateRoute><ActivityLogPage /></PrivateRoute>} />
         </Routes>
       </Router>
     </AuthProvider>

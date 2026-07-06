@@ -92,5 +92,21 @@ service cloud.firestore {
       allow delete: if isOwner(existing().userId);
       allow list: if isOwner(resource.data.userId);
     }
+    // ACTIVITIES
+    match /activities/{activityId} {
+      allow read: if isOwner(existing().userId);
+      allow create: if isSignedIn() && isValidId(activityId) && incoming().userId == request.auth.uid;
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+      allow list: if isOwner(resource.data.userId);
+    }
+    // CONSORTIUMS
+    match /consortiums/{consortiumId} {
+      allow read: if isOwner(existing().userId);
+      allow create: if isSignedIn() && isValidId(consortiumId) && incoming().userId == request.auth.uid;
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+      allow list: if isOwner(resource.data.userId);
+    }
   }
 }
