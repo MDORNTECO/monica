@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Search, Trash2, Calendar, CreditCard, CheckCircle, AlertCircle, ChevronDown, ChevronUp, DollarSign } from 'lucide-react';
+import { Plus, Users, Search, Trash2, Calendar, CreditCard, CheckCircle, AlertCircle, ChevronDown, ChevronUp, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Client, Consortium } from '../types';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { format, isPast, parseISO, startOfDay, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { format, isPast, parseISO, startOfDay, startOfMonth, endOfMonth, isSameMonth, addMonths, subMonths } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 
 export default function ConsortiumPage() {
@@ -25,6 +26,7 @@ export default function ConsortiumPage() {
 
   const [expandedAmigos, setExpandedAmigos] = useState(true);
   const [expandedCartorio, setExpandedCartorio] = useState(true);
+  const [currentViewDate, setCurrentViewDate] = useState(new Date());
 
   useEffect(() => {
     loadData();
@@ -92,7 +94,7 @@ export default function ConsortiumPage() {
     loadData();
   }
 
-  const now = new Date();
+  const now = currentViewDate;
   const monthStart = startOfMonth(now);
 
   const renderList = (type: 'amigos' | 'cartorio') => {
@@ -151,7 +153,7 @@ export default function ConsortiumPage() {
                 </div>
                 
                 <div className="text-sm text-slate-500 mt-0.5">
-                  {currentInst ? `Mês Atual: ${format(parseISO(currentInst.dueDate), 'MMMM/yyyy')}` : 'Fora de vigência'}
+                  {currentInst ? `Mês Atual: ${format(parseISO(currentInst.dueDate), 'MMMM/yyyy', { locale: ptBR })}` : 'Fora de vigência'}
                 </div>
                 
                 {pastUnpaid.length > 0 && (
@@ -215,10 +217,31 @@ export default function ConsortiumPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Consórcios</h1>
           <p className="text-slate-500">Gerenciamento mensal de Consórcio Amigos e Cartório.</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-pink-600 hover:bg-pink-700 text-white gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Membro
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white rounded-lg border border-slate-200 shadow-sm p-1">
+            <button 
+              onClick={() => setCurrentViewDate(prev => subMonths(prev, 1))}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-md transition-colors"
+              title="Mês Anterior"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="w-32 text-center font-semibold text-slate-700 text-sm uppercase tracking-wide">
+              {format(currentViewDate, 'MMMM yyyy', { locale: ptBR })}
+            </div>
+            <button 
+              onClick={() => setCurrentViewDate(prev => addMonths(prev, 1))}
+              className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-50 rounded-md transition-colors"
+              title="Próximo Mês"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+          <Button onClick={() => setIsModalOpen(true)} className="bg-pink-600 hover:bg-pink-700 text-white gap-2">
+            <Plus className="w-4 h-4" />
+            Novo Membro
+          </Button>
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6">
