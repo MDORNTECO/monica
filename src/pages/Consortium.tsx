@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Search, Trash2, Calendar, CreditCard, CheckCircle, AlertCircle } from 'lucide-react';
+import { Plus, Users, Search, Trash2, Calendar, CreditCard, CheckCircle, AlertCircle, ChevronDown, ChevronUp, DollarSign } from 'lucide-react';
 import { dbService } from '../services/db';
 import { Client, Consortium } from '../types';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
-import { format, isPast, parseISO, startOfDay } from 'date-fns';
+import { format, isPast, parseISO, startOfDay, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import { cn } from '../lib/utils';
 
 export default function ConsortiumPage() {
@@ -22,6 +22,9 @@ export default function ConsortiumPage() {
   const [newClientName, setNewClientName] = useState('');
   const [durationMonths, setDurationMonths] = useState('10');
   const [startDate, setStartDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+  const [expandedAmigos, setExpandedAmigos] = useState(true);
+  const [expandedCartorio, setExpandedCartorio] = useState(true);
 
   useEffect(() => {
     loadData();
@@ -74,143 +77,202 @@ export default function ConsortiumPage() {
   }
 
   async function handleDelete(id: string) {
-    if (confirm('Tem certeza que deseja excluir este consórcio?')) {
+    if (confirm('Tem certeza que deseja excluir este membro do consórcio? Todos os pagamentos registrados para esta pessoa serão apagados.')) {
       await dbService.deleteConsortium(id);
       loadData();
     }
   }
 
-  async function handleToggleInstallment(consortiumId: string, installmentId: string) {
-    await dbService.toggleConsortiumInstallment(consortiumId, installmentId);
+  async function handleActionClick(c: Consortium, toPayIds: string[], toUnpayId?: string) {
+    if (toPayIds.length > 0) {
+      await dbService.markConsortiumInstallments(c.id, toPayIds, true);
+    } else if (toUnpayId) {
+      await dbService.markConsortiumInstallments(c.id, [toUnpayId], false);
+    }
     loadData();
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Consórcios</h1>
-          <p className="text-slate-500">Gerencie Consórcio Amigos e Consórcio Cartório (Valor Fixo: R$ 50,00).</p>
-        </div>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-pink-600 hover:bg-pink-700 text-white gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Consórcio
-        </Button>
-      </div>
+  const now = new Date();
+  const monthStart = startOfMonth(now);
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {loading ? (
-          <div className="col-span-full p-12 text-center text-slate-500">Carregando...</div>
-        ) : consortiums.length === 0 ? (
-          <div className="col-span-full bg-white rounded-2xl p-12 text-center border border-slate-200">
-            <Users className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500 font-medium">Nenhum consórcio ativo</p>
-            <p className="text-slate-400 text-sm mt-1">Clique em "Novo Consórcio" para começar.</p>
-          </div>
-        ) : (
-          consortiums.map(c => {
-            const installments = c.installments || [];
-            const paidInstallments = installments.filter(i => i.paid);
-            const totalPaid = paidInstallments.length * c.monthlyValue;
-            const progress = Math.min(100, Math.round((paidInstallments.length / c.durationMonths) * 100));
-            const isCompleted = c.status === 'completed';
+  const renderList = (type: 'amigos' | 'cartorio') => {
+    const list = consortiums.filter(c => c.groupType === type);
+    if (list.length === 0) return <div className="p-4 text-slate-500 text-sm text-center">Nenhum membro cadastrado.</div>;
 
-            const now = startOfDay(new Date());
-            const pendingInstallments = installments.filter(i => !i.paid && startOfDay(parseISO(i.dueDate)) < now);
-            const pendingAmount = pendingInstallments.length * c.monthlyValue;
+    return (
+      <div className="divide-y divide-slate-100">
+        {list.map(c => {
+          const installments = c.installments || [];
+          
+          // Find past unpaid
+          const pastUnpaid = installments.filter(i => parseISO(i.dueDate) < monthStart && !i.paid);
+          // Find current month
+          const currentInst = installments.find(i => isSameMonth(parseISO(i.dueDate), now));
+          
+          const pendingAmount = pastUnpaid.length * c.monthlyValue;
+          let currentDue = 0;
+          let isCurrentPaid = false;
+          let toPayIds: string[] = pastUnpaid.map(i => i.id);
+          let toUnpayId: string | undefined = undefined;
 
-            return (
-              <div key={c.id} className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col relative group">
-                <button 
-                  onClick={() => handleDelete(c.id)}
-                  className="absolute top-4 right-4 p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                  title="Excluir Consórcio"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+          if (currentInst) {
+            if (!currentInst.paid) {
+              currentDue = c.monthlyValue;
+              toPayIds.push(currentInst.id);
+            } else {
+              isCurrentPaid = true;
+              // If we want to undo, we'll undo the current month
+              toUnpayId = currentInst.id;
+            }
+          } else {
+            // If there's no current month, maybe they finished or haven't started.
+            // If they are fully paid, let's find the last paid one to unpay just in case.
+            if (pastUnpaid.length === 0) {
+               const lastPaid = [...installments].reverse().find(i => i.paid);
+               if (lastPaid) toUnpayId = lastPaid.id;
+            }
+          }
+
+          const totalDue = pendingAmount + currentDue;
+          const isUpToDate = totalDue === 0;
+
+          return (
+            <div key={c.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between group">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-800">{c.clientName}</h3>
+                  <button 
+                    onClick={() => handleDelete(c.id)}
+                    className="p-1 text-slate-400 hover:text-red-500 rounded transition-all"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
                 
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-lg">{c.clientName}</h3>
-                    <span className={cn("text-xs font-medium px-2 py-1 rounded-md", c.groupType === 'amigos' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700')}>
-                      Consórcio {c.groupType === 'amigos' ? 'Amigos' : 'Cartório'}
-                    </span>
-                  </div>
+                <div className="text-sm text-slate-500 mt-0.5">
+                  {currentInst ? `Mês Atual: ${format(parseISO(currentInst.dueDate), 'MMMM/yyyy')}` : 'Fora de vigência'}
                 </div>
-
-                {pendingAmount > 0 && !isCompleted && (
-                  <div className="mb-4 bg-red-50 border border-red-100 p-3 rounded-lg flex items-center gap-2 text-red-700">
-                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                    <div className="text-sm font-medium">
-                      Pendente: {pendingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-3 flex-1 mb-2">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-500">Início</span>
-                    <span className="font-medium text-slate-700">{new Date(c.startDate + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
-                  </div>
-                </div>
-
-                <div className="my-4">
-                  <div className="text-sm font-medium text-slate-700 mb-2">Pagamentos Mensais</div>
-                  <div className="flex flex-wrap gap-2">
-                    {installments.map((inst) => {
-                      const dueDate = startOfDay(parseISO(inst.dueDate));
-                      const isPastDue = dueDate < now && !inst.paid;
-                      return (
-                        <button
-                          key={inst.id}
-                          onClick={() => handleToggleInstallment(c.id, inst.id)}
-                          className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all border-2",
-                            inst.paid 
-                              ? "bg-green-500 border-green-500 text-white" 
-                              : isPastDue 
-                                ? "bg-red-50 border-red-400 text-red-700 hover:bg-red-100" 
-                                : "bg-slate-50 border-slate-200 text-slate-400 hover:bg-slate-100"
-                          )}
-                          title={`Mês ${inst.monthIndex + 1} - Vencimento: ${format(dueDate, 'dd/MM/yyyy')}`}
-                        >
-                          {inst.paid ? <CheckCircle className="w-5 h-5" /> : inst.monthIndex + 1}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="text-xs text-slate-500 mt-2">Clique na bolinha para confirmar ou desfazer o pagamento.</div>
-                </div>
-
-                <div className="space-y-2 mt-4">
-                  <div className="flex justify-between text-xs font-medium">
-                    <span className="text-pink-600">{totalPaid.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} pago</span>
-                    <span className="text-slate-400">{progress}%</span>
-                  </div>
-                  <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                    <div 
-                      className={cn("h-full rounded-full transition-all duration-500", isCompleted ? "bg-green-500" : "bg-pink-500")}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </div>
-
-                {isCompleted && (
-                  <div className="mt-4 bg-green-50 text-green-700 p-3 rounded-xl flex items-center justify-center gap-2 font-bold">
-                    <CheckCircle className="w-5 h-5" />
-                    Consórcio Finalizado
+                
+                {pastUnpaid.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1.5 text-xs font-medium text-red-600 bg-red-50 inline-flex px-2 py-1 rounded-md">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    Pagamentos anteriores pendentes! (Somados)
                   </div>
                 )}
               </div>
-            );
-          })
-        )}
+
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <div className={cn("text-lg font-bold", isUpToDate ? "text-slate-400 line-through" : "text-slate-800")}>
+                    {totalDue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </div>
+                  {isUpToDate && <div className="text-xs font-bold text-green-600 uppercase tracking-wider">Pago</div>}
+                </div>
+                
+                <button
+                  onClick={() => handleActionClick(c, toPayIds, toUnpayId)}
+                  className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center transition-all flex-shrink-0 shadow-sm border-2",
+                    isUpToDate 
+                      ? "bg-green-500 border-green-500 text-white hover:bg-green-600" 
+                      : "bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-green-500 hover:border-green-500"
+                  )}
+                  title={isUpToDate ? "Desfazer pagamento" : "Marcar pendências como pago"}
+                >
+                  <CheckCircle className={cn("w-6 h-6", isUpToDate && "text-white")} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Financial calculations (Consortium only)
+  let totalReceivedThisMonth = 0;
+  let totalPendingThisMonth = 0;
+
+  consortiums.forEach(c => {
+    const installments = c.installments || [];
+    // Only current month installments
+    const currentInsts = installments.filter(i => isSameMonth(parseISO(i.dueDate), now));
+    currentInsts.forEach(i => {
+      if (i.paid) totalReceivedThisMonth += c.monthlyValue;
+      else totalPendingThisMonth += c.monthlyValue;
+    });
+    
+    // Also add past unpaid to pending? The user might want total pending. Let's include past unpaid.
+    const pastUnpaid = installments.filter(i => parseISO(i.dueDate) < monthStart && !i.paid);
+    totalPendingThisMonth += (pastUnpaid.length * c.monthlyValue);
+  });
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Consórcios</h1>
+          <p className="text-slate-500">Gerenciamento mensal de Consórcio Amigos e Cartório.</p>
+        </div>
+        <Button onClick={() => setIsModalOpen(true)} className="bg-pink-600 hover:bg-pink-700 text-white gap-2">
+          <Plus className="w-4 h-4" />
+          Novo Membro
+        </Button>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Novo Consórcio">
+      <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6">
+        <div className="flex-1">
+          <div className="text-sm font-medium text-slate-500 mb-1">Recebido este Mês (Consórcio)</div>
+          <div className="text-2xl font-black text-green-600">
+            {totalReceivedThisMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </div>
+        </div>
+        <div className="w-px bg-slate-100 hidden sm:block"></div>
+        <div className="flex-1">
+          <div className="text-sm font-medium text-slate-500 mb-1">Pendente (Total)</div>
+          <div className="text-2xl font-black text-red-600">
+            {totalPendingThisMonth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {/* Amigos */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button 
+            onClick={() => setExpandedAmigos(!expandedAmigos)}
+            className="w-full flex items-center justify-between p-4 bg-pink-50 hover:bg-pink-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-pink-600" />
+              <h2 className="text-lg font-bold text-pink-900">Consórcio Amigos</h2>
+            </div>
+            {expandedAmigos ? <ChevronUp className="w-5 h-5 text-pink-600" /> : <ChevronDown className="w-5 h-5 text-pink-600" />}
+          </button>
+          {expandedAmigos && renderList('amigos')}
+        </div>
+
+        {/* Cartorio */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <button 
+            onClick={() => setExpandedCartorio(!expandedCartorio)}
+            className="w-full flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-bold text-blue-900">Consórcio Cartório</h2>
+            </div>
+            {expandedCartorio ? <ChevronUp className="w-5 h-5 text-blue-600" /> : <ChevronDown className="w-5 h-5 text-blue-600" />}
+          </button>
+          {expandedCartorio && renderList('cartorio')}
+        </div>
+      </div>
+
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Adicionar Membro">
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Tipo de Consórcio</label>
+            <label className="text-sm font-medium text-slate-700">Grupo</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"

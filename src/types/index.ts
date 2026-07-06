@@ -65,7 +65,7 @@ export interface ConsortiumInstallment {
   monthIndex: number;
   dueDate: string; // YYYY-MM-DD
   paid: boolean;
-  paidAt?: number;
+  paidAt?: number | null;
 }
 
 export interface Consortium {

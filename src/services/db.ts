@@ -588,7 +588,7 @@ export const dbService = {
     }
   },
 
-  toggleConsortiumInstallment: async (consortiumId: string, installmentId: string): Promise<void> => {
+  markConsortiumInstallments: async (consortiumId: string, installmentIds: string[], paid: boolean): Promise<void> => {
     const userId = auth.currentUser?.uid;
     if (!userId) throw new Error('Not logged in');
     const now = Date.now();
@@ -599,23 +599,27 @@ export const dbService = {
         const data = snap.data();
         const installments = data.installments || [];
         
-        const instIndex = installments.findIndex((i: any) => i.id === installmentId);
-        if (instIndex !== -1) {
-          const isCurrentlyPaid = installments[instIndex].paid;
-          installments[instIndex].paid = !isCurrentlyPaid;
-          installments[instIndex].paidAt = !isCurrentlyPaid ? now : undefined;
-          
+        let changed = false;
+        for (const iId of installmentIds) {
+          const instIndex = installments.findIndex((i: any) => i.id === iId);
+          if (instIndex !== -1 && installments[instIndex].paid !== paid) {
+            installments[instIndex].paid = paid;
+            installments[instIndex].paidAt = paid ? now : null;
+            changed = true;
+          }
+        }
+        
+        if (changed) {
           let status = 'active';
           if (installments.every((i: any) => i.paid)) {
             status = 'completed';
           }
-          
           await updateDoc(ref, { installments, status, updatedAt: now });
 
           const user = auth.currentUser;
           const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
-          const actionWord = !isCurrentlyPaid ? 'marcou como pago' : 'desmarcou';
-          await dbService.logActivity(`${userName} ${actionWord} o mês ${installments[instIndex].monthIndex + 1} do consórcio de ${data.clientName}.`);
+          const actionWord = paid ? 'marcou pagamentos como pagos' : 'desmarcou pagamentos';
+          await dbService.logActivity(`${userName} ${actionWord} no consórcio de ${data.clientName}.`);
         }
       }
     } catch (e) {
