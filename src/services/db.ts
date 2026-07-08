@@ -576,6 +576,8 @@ export const dbService = {
         userId,
         installments,
         status: 'active',
+        participatesInDraw: true,
+        drawWins: [],
         createdAt: now,
         updatedAt: now
       });
@@ -584,6 +586,43 @@ export const dbService = {
       await dbService.logActivity(`${userName} criou um novo consórcio para ${consortium.clientName}.`);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `consortiums`);
+      throw e;
+    }
+  },
+
+  toggleDrawParticipation: async (consortiumId: string, participates: boolean): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      await updateDoc(doc(db, 'consortiums', consortiumId), {
+        participatesInDraw: participates,
+        updatedAt: Date.now()
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `consortiums`);
+      throw e;
+    }
+  },
+
+  registerDrawWin: async (consortiumId: string, timestamp: number): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const ref = doc(db, 'consortiums', consortiumId);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const wins = data.drawWins || [];
+        await updateDoc(ref, {
+          drawWins: [...wins, timestamp],
+          updatedAt: Date.now()
+        });
+        const user = auth.currentUser;
+        const userName = user?.displayName || user?.email?.split('@')[0] || 'Usuário';
+        await dbService.logActivity(`${userName} registrou contemplação de sorteio para ${data.clientName}.`);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `consortiums`);
       throw e;
     }
   },

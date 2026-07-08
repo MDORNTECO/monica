@@ -80,6 +80,8 @@ export interface Consortium {
   startDate: string;
   status: 'active' | 'completed';
   installments: ConsortiumInstallment[];
+  participatesInDraw?: boolean;
+  drawWins?: number[];
   createdAt: number;
   updatedAt: number;
 }
