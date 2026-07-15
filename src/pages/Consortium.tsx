@@ -108,6 +108,14 @@ export default function ConsortiumPage() {
     loadData();
   }
 
+  async function handleClearDrawHistory(clientId: string) {
+    if (confirm("Tem certeza que deseja remover todo o histórico de contemplações deste cliente?")) {
+      await dbService.clearDrawHistory(clientId);
+      setSelectedHistoryClient(null);
+      loadData();
+    }
+  }
+
   const now = currentViewDate;
   const monthStart = startOfMonth(now);
 
@@ -466,7 +474,14 @@ export default function ConsortiumPage() {
               </div>
             </div>
             
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
+              <button 
+                onClick={() => handleClearDrawHistory(selectedHistoryClient.id)}
+                className="text-red-500 hover:text-red-700 text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                <Trash2 className="w-4 h-4" />
+                Limpar Histórico
+              </button>
               <Button onClick={() => setSelectedHistoryClient(null)} className="bg-slate-800 hover:bg-slate-900 text-white">Fechar</Button>
             </div>
           </div>

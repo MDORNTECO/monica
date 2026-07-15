@@ -604,6 +604,21 @@ export const dbService = {
     }
   },
 
+  clearDrawHistory: async (consortiumId: string): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const ref = doc(db, 'consortiums', consortiumId);
+      await updateDoc(ref, {
+        drawWins: [],
+        updatedAt: Date.now()
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `consortiums`);
+      throw e;
+    }
+  },
+
   registerDrawWin: async (consortiumId: string, timestamp: number): Promise<void> => {
     const userId = auth.currentUser?.uid;
     if (!userId) throw new Error('Not logged in');
