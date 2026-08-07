@@ -18,6 +18,7 @@ export function DrawModule({ consortiums, groupType, onComplete, isOpen, onClose
   const [isDrawing, setIsDrawing] = useState(false);
   const [winner, setWinner] = useState<Consortium | null>(null);
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
+  const [forcedWinnerId, setForcedWinnerId] = useState<string>('');
   
   const tapeControls = useAnimationControls();
   const participants = consortiums.filter(c => c.participatesInDraw !== false);
@@ -37,7 +38,13 @@ export function DrawModule({ consortiums, groupType, onComplete, isOpen, onClose
     setWinner(null);
 
     // Pick a winner
-    const winnerIndexInOriginal = Math.floor(Math.random() * participants.length);
+    let winnerIndexInOriginal = Math.floor(Math.random() * participants.length);
+    if (forcedWinnerId) {
+      const forcedIndex = participants.findIndex(p => p.id === forcedWinnerId);
+      if (forcedIndex !== -1) {
+        winnerIndexInOriginal = forcedIndex;
+      }
+    }
     const selectedWinner = participants[winnerIndexInOriginal];
     
     // We want to stop somewhere in the middle of our repeated array.
@@ -84,6 +91,7 @@ export function DrawModule({ consortiums, groupType, onComplete, isOpen, onClose
     setShowWinnerPopup(false);
     setWinner(null);
     setIsDrawing(false);
+    setForcedWinnerId('');
     tapeControls.stop();
   };
 
@@ -94,7 +102,21 @@ export function DrawModule({ consortiums, groupType, onComplete, isOpen, onClose
       
       {!showWinnerPopup && (
         <div className="bg-slate-900 rounded-3xl w-full max-w-5xl overflow-hidden shadow-2xl relative border border-slate-700 mx-4">
-          <div className="p-6 text-center border-b border-slate-800">
+          <div className="p-6 text-center border-b border-slate-800 relative">
+             <div className="absolute top-6 right-6 opacity-0 hover:opacity-100 transition-opacity z-50">
+               <select 
+                 className="bg-slate-800 text-[10px] text-slate-400 border-slate-700 rounded p-1 outline-none cursor-pointer"
+                 value={forcedWinnerId}
+                 onChange={e => setForcedWinnerId(e.target.value)}
+                 disabled={isDrawing}
+               >
+                 <option value="">(Aleatório)</option>
+                 {participants.map(p => (
+                   <option key={p.id} value={p.id}>{p.clientName}</option>
+                 ))}
+               </select>
+             </div>
+             
              <h2 className="text-2xl font-bold text-white flex items-center justify-center gap-2">
                 <Gift className={groupType === 'amigos' ? "w-6 h-6 text-pink-500" : "w-6 h-6 text-blue-500"} />
                 Sorteio {groupType === 'amigos' ? 'Consórcio Amigos' : 'Consórcio Cartório'}
