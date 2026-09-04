@@ -59,6 +59,8 @@ export default function DashboardPage() {
   const todayInst: Installment[] = [];
   const monthInst: Installment[] = [];
 
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+
   pendingInst.forEach(inst => {
     const due = parseISO(inst.dueDate);
     
@@ -72,10 +74,10 @@ export default function DashboardPage() {
       if (inst.brand === 'Tupperware') totalTupperware += inst.remainingAmount;
     }
     
-    if (isPast(due) && !isToday(due)) {
+    if (inst.dueDate < todayStr) {
       overdueTotal += inst.remainingAmount;
       overdueInst.push(inst);
-    } else if (isToday(due)) {
+    } else if (inst.dueDate === todayStr) {
       todayTotal += inst.remainingAmount;
       todayInst.push(inst);
     }
@@ -280,8 +282,8 @@ export default function DashboardPage() {
                       <span className={inst.brand === 'Eudora' ? "text-purple-600 font-medium" : "text-teal-600 font-medium"}>{inst.brand}</span>
                     </td>
                     <td className="px-6 py-4 text-slate-500">Nº {inst.number}</td>
-                    <td className={cn("px-6 py-4 font-bold", isPast(parseISO(inst.dueDate)) && !isToday(parseISO(inst.dueDate)) ? "text-red-500" : "text-amber-600")}>
-                      {isToday(parseISO(inst.dueDate)) ? 'Hoje' : `${new Date(inst.dueDate).toLocaleDateString('pt-BR')} (Atrasado)`}
+                    <td className={cn("px-6 py-4 font-bold", inst.dueDate < todayStr ? "text-red-500" : "text-amber-600")}>
+                      {inst.dueDate === todayStr ? 'Hoje' : (inst.dueDate < todayStr ? `${new Date(inst.dueDateMs).toLocaleDateString('pt-BR')} (Atrasado)` : new Date(inst.dueDateMs).toLocaleDateString('pt-BR'))}
                     </td>
                     <td className="px-6 py-4 text-right font-black text-slate-900">{inst.remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                   </tr>

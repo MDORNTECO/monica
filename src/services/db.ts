@@ -1,6 +1,7 @@
 import { Client, Sale, Installment, Payment, PaymentStatus } from '../types';
 import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, query, where, writeBatch, getDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
+import { format } from 'date-fns';
 
 enum OperationType {
   CREATE = 'create',
@@ -315,16 +316,17 @@ export const dbService = {
       
       batch.update(instRef, { ...updates, updatedAt: now });
 
-      // If amount changes, we need to recalculate remainingAmount and Sale total
+      let needsStatusUpdate = false;
+      let newStatus = currentInst.status;
+      let remainingAmount = currentInst.remainingAmount;
+
       if (updates.amount !== undefined && updates.amount !== currentInst.amount) {
           const amount = updates.amount;
-          const remainingAmount = Math.max(0, amount - currentInst.paidAmount);
-          let status = currentInst.status;
-          if (remainingAmount === 0) status = 'pago';
-          else if (currentInst.paidAmount > 0) status = 'pago_parcial';
-          else status = 'pendente';
-          
-          batch.update(instRef, { remainingAmount, status, updatedAt: now });
+          remainingAmount = Math.max(0, amount - currentInst.paidAmount);
+          if (remainingAmount === 0) newStatus = 'pago';
+          else if (currentInst.paidAmount > 0) newStatus = 'pago_parcial';
+          else newStatus = 'pendente';
+          needsStatusUpdate = true;
 
           // Also update the sale's totalValue
           const saleRef = doc(db, 'sales', currentInst.saleId);
@@ -342,12 +344,23 @@ export const dbService = {
           const saleSnap = await getDoc(saleRef);
           if (saleSnap.exists()) {
              const sale = saleSnap.data() as Sale;
-             // Don't forget entry value if any? The sale's paidValue might include entry.
-             // Wait, totalValue is sum of installments + entry. But entry is not stored as a separate installment.
-             // Wait, is entry part of paidValue? We can just do: newTotal = oldTotal + (newAmount - oldAmount)
              const diff = amount - currentInst.amount;
              batch.update(saleRef, { totalValue: sale.totalValue + diff, updatedAt: now });
           }
+      }
+
+      const checkDate = updates.dueDate || currentInst.dueDate;
+      if (newStatus !== 'pago') {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const calcStatus = checkDate < todayStr ? 'atrasado' : (currentInst.paidAmount > 0 ? 'pago_parcial' : 'pendente');
+          if (calcStatus !== newStatus) {
+              newStatus = calcStatus;
+              needsStatusUpdate = true;
+          }
+      }
+
+      if (needsStatusUpdate) {
+          batch.update(instRef, { remainingAmount, status: newStatus, updatedAt: now });
       }
       
       await batch.commit();
@@ -438,7 +451,18 @@ export const dbService = {
     try {
       let q = query(collection(db, 'installments'), where('userId', '==', userId));
       const snapshot = await getDocs(q);
-      let list = snapshot.docs.map(doc => doc.data() as Installment);
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      let list = snapshot.docs.map(doc => {
+         const data = doc.data() as Installment;
+         if (data.status !== 'pago') {
+             if (data.dueDate < todayStr) {
+                 data.status = 'atrasado';
+             } else {
+                 data.status = data.paidAmount > 0 ? 'pago_parcial' : 'pendente';
+             }
+         }
+         return data;
+      });
       if (filters?.saleId) list = list.filter(i => i.saleId === filters.saleId);
       if (filters?.status) list = list.filter(i => i.status === filters.status);
       return list;
