@@ -58,11 +58,13 @@ export default function SalesManager({ brand }: Props) {
   const [saleToEdit, setSaleToEdit] = useState<Sale | null>(null);
   const [editSaleDesc, setEditSaleDesc] = useState('');
   const [editSaleTotal, setEditSaleTotal] = useState('');
+  const [editSaleDate, setEditSaleDate] = useState('');
   const [editSaleAction, setEditSaleAction] = useState<'redistribute' | 'new_installment' | 'none'>('none');
   
   const [instToEdit, setInstToEdit] = useState<Installment | null>(null);
   const [editInstAmount, setEditInstAmount] = useState('');
-  
+  const [editInstDueDate, setEditInstDueDate] = useState('');
+
   async function handleEditSaleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!saleToEdit) return;
@@ -72,9 +74,13 @@ export default function SalesManager({ brand }: Props) {
 
     if (newTotal !== saleToEdit.totalValue) {
        await dbService.updateSaleAdvanced(saleToEdit.id, newTotal, editSaleDesc, editSaleAction);
+       if (editSaleDate !== saleToEdit.date) {
+         await dbService.updateSale(saleToEdit.id, { date: editSaleDate });
+       }
     } else {
        await dbService.updateSale(saleToEdit.id, {
-         description: editSaleDesc
+         description: editSaleDesc,
+         date: editSaleDate
        });
     }
     
@@ -87,6 +93,7 @@ export default function SalesManager({ brand }: Props) {
     setSaleToEdit(sale);
     setEditSaleDesc(sale.description);
     setEditSaleTotal(sale.totalValue.toString());
+    setEditSaleDate(sale.date);
     setEditSaleAction('none');
   }
 
@@ -94,8 +101,18 @@ export default function SalesManager({ brand }: Props) {
     e.preventDefault();
     if (!instToEdit) return;
 
+    let dueDateMs = instToEdit.dueDateMs;
+    let dueDate = instToEdit.dueDate;
+    if (editInstDueDate) {
+      const [y, m, d] = editInstDueDate.split('-').map(Number);
+      dueDateMs = new Date(y, m - 1, d, 12, 0, 0).getTime();
+      dueDate = editInstDueDate;
+    }
+
     await dbService.updateInstallment(instToEdit.id, {
-      amount: parseFloat(editInstAmount) || instToEdit.amount
+      amount: parseFloat(editInstAmount) || instToEdit.amount,
+      dueDateMs,
+      dueDate
     });
 
     setInstToEdit(null);
@@ -105,6 +122,7 @@ export default function SalesManager({ brand }: Props) {
   function openEditInst(inst: Installment) {
     setInstToEdit(inst);
     setEditInstAmount(inst.amount.toString());
+    setEditInstDueDate(format(new Date(inst.dueDateMs), 'yyyy-MM-dd'));
   }
 
   const [recentlyDeleted, setRecentlyDeleted] = useState<{sale: Sale | null, installments: Installment[], payments: Payment[]} | null>(null);
@@ -413,6 +431,16 @@ export default function SalesManager({ brand }: Props) {
 
       <Modal isOpen={!!saleToEdit} onClose={() => setSaleToEdit(null)} title="Editar Venda">
         <form onSubmit={handleEditSaleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Data da Venda</label>
+              <Input required type="date" value={editSaleDate} onChange={e => setEditSaleDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-slate-700">Valor Total (R$)</label>
+              <Input required type="number" step="0.01" min="0.01" value={editSaleTotal} onChange={e => setEditSaleTotal(e.target.value)} />
+            </div>
+          </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Descrição dos Produtos</label>
             <textarea 
@@ -423,10 +451,8 @@ export default function SalesManager({ brand }: Props) {
               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all resize-none"
             />
           </div>
+          
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Valor Total (R$)</label>
-            <Input required type="number" step="0.01" min="0.01" value={editSaleTotal} onChange={e => setEditSaleTotal(e.target.value)} />
-            
             {saleToEdit && parseFloat(editSaleTotal.replace(',', '.')) !== saleToEdit.totalValue && (
               <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-3">
                 <p className="text-sm text-amber-800 font-medium">
@@ -463,6 +489,10 @@ export default function SalesManager({ brand }: Props) {
 
       <Modal isOpen={!!instToEdit} onClose={() => setInstToEdit(null)} title="Editar Parcela">
         <form onSubmit={handleEditInstSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-slate-700">Data de Vencimento</label>
+            <Input required type="date" value={editInstDueDate} onChange={e => setEditInstDueDate(e.target.value)} />
+          </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-slate-700">Novo Valor da Parcela (R$)</label>
             <Input required type="number" step="0.01" min="0.01" value={editInstAmount} onChange={e => setEditInstAmount(e.target.value)} />

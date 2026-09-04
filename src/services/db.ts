@@ -308,22 +308,46 @@ export const dbService = {
       const now = Date.now();
       const instRef = doc(db, 'installments', instId);
       const batch = writeBatch(db);
+      
+      const instSnap = await getDoc(instRef);
+      if (!instSnap.exists()) return;
+      const currentInst = instSnap.data() as Installment;
+      
       batch.update(instRef, { ...updates, updatedAt: now });
 
-      // If amount changes, we need to recalculate remainingAmount
-      if (updates.amount !== undefined) {
-         const instSnap = await getDoc(instRef);
-         if (instSnap.exists()) {
-             const currentInst = instSnap.data() as Installment;
-             const amount = updates.amount;
-             const remainingAmount = Math.max(0, amount - currentInst.paidAmount);
-             let status = currentInst.status;
-             if (remainingAmount === 0) status = 'pago';
-             else if (currentInst.paidAmount > 0) status = 'pago_parcial';
-             else status = 'pendente';
-             
-             batch.update(instRef, { remainingAmount, status, updatedAt: now });
-         }
+      // If amount changes, we need to recalculate remainingAmount and Sale total
+      if (updates.amount !== undefined && updates.amount !== currentInst.amount) {
+          const amount = updates.amount;
+          const remainingAmount = Math.max(0, amount - currentInst.paidAmount);
+          let status = currentInst.status;
+          if (remainingAmount === 0) status = 'pago';
+          else if (currentInst.paidAmount > 0) status = 'pago_parcial';
+          else status = 'pendente';
+          
+          batch.update(instRef, { remainingAmount, status, updatedAt: now });
+
+          // Also update the sale's totalValue
+          const saleRef = doc(db, 'sales', currentInst.saleId);
+          const instQ = query(collection(db, 'installments'), where('saleId', '==', currentInst.saleId));
+          const allInstsSnap = await getDocs(instQ);
+          let newTotal = 0;
+          allInstsSnap.forEach(doc => {
+            if (doc.id === instId) {
+               newTotal += amount;
+            } else {
+               newTotal += (doc.data() as Installment).amount;
+            }
+          });
+          
+          const saleSnap = await getDoc(saleRef);
+          if (saleSnap.exists()) {
+             const sale = saleSnap.data() as Sale;
+             // Don't forget entry value if any? The sale's paidValue might include entry.
+             // Wait, totalValue is sum of installments + entry. But entry is not stored as a separate installment.
+             // Wait, is entry part of paidValue? We can just do: newTotal = oldTotal + (newAmount - oldAmount)
+             const diff = amount - currentInst.amount;
+             batch.update(saleRef, { totalValue: sale.totalValue + diff, updatedAt: now });
+          }
       }
       
       await batch.commit();
