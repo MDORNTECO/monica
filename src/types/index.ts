@@ -60,6 +60,18 @@ export interface Payment {
   updatedAt: number;
 }
 
+export interface Boleto {
+  id: string;
+  userId: string;
+  brand: Brand;
+  description: string;
+  amount: number;
+  dueDate: string; // YYYY-MM-DD
+  status: 'pendente' | 'pago';
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface ConsortiumInstallment {
   id: string;
   monthIndex: number;

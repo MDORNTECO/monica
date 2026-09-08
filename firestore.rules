@@ -108,5 +108,13 @@ service cloud.firestore {
       allow delete: if isOwner(existing().userId);
       allow list: if isOwner(resource.data.userId);
     }
+    // BOLETOS
+    match /boletos/{boletoId} {
+      allow read: if isOwner(existing().userId);
+      allow create: if isSignedIn() && isValidId(boletoId) && incoming().userId == request.auth.uid;
+      allow update: if isOwner(existing().userId) && incoming().userId == existing().userId;
+      allow delete: if isOwner(existing().userId);
+      allow list: if isOwner(resource.data.userId);
+    }
   }
 }

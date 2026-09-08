@@ -11,6 +11,7 @@ import CalendarPage from './pages/Calendar';
 import ManageClientsPage from './pages/ManageClients';
 import ConsortiumPage from './pages/Consortium';
 import ActivityLogPage from './pages/ActivityLog';
+import BoletosPage from './pages/Boletos';
 import Login from './pages/Login';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     { to: "/", icon: Home, label: "Dashboard" },
     { to: "/eudora", icon: Package, label: "Eudora" },
     { to: "/tupperware", icon: Package, label: "Tupper" },
+    { to: "/boletos", icon: Package, label: "Boletos" },
     { to: "/consortium", icon: Users, label: "Consórcio" },
     { to: "/clients", icon: Users, label: "Consultas" },
     { to: "/manage-clients", icon: UserCog, label: "Clientes" },
@@ -105,6 +107,7 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
           <Route path="/eudora" element={<PrivateRoute><EudoraPage /></PrivateRoute>} />
           <Route path="/tupperware" element={<PrivateRoute><TupperwarePage /></PrivateRoute>} />
+          <Route path="/boletos" element={<PrivateRoute><BoletosPage /></PrivateRoute>} />
           <Route path="/clients" element={<PrivateRoute><ClientsPage /></PrivateRoute>} />
           <Route path="/manage-clients" element={<PrivateRoute><ManageClientsPage /></PrivateRoute>} />
           <Route path="/calendar" element={<PrivateRoute><CalendarPage /></PrivateRoute>} />

@@ -1,4 +1,4 @@
-import { Client, Sale, Installment, Payment, PaymentStatus } from '../types';
+import { Client, Sale, Installment, Payment, PaymentStatus, Boleto } from '../types';
 import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, query, where, writeBatch, getDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { format } from 'date-fns';
@@ -224,18 +224,17 @@ export const dbService = {
         installments.sort((a, b) => a.dueDateMs - b.dueDateMs);
         
         const pendingInsts = installments.filter(i => i.status !== 'pago');
+        const targetInsts = pendingInsts.length > 0 ? pendingInsts : installments;
 
-        if (action === 'redistribute' && pendingInsts.length > 0) {
-          // Distribute the difference equally among pending installments
-          // If difference is negative, we might end up with negative amounts, so bounds check?
-          // Simplest is to divide by pending items.
-          const diffPerInst = Number((difference / pendingInsts.length).toFixed(2));
+        if (action === 'redistribute' && targetInsts.length > 0) {
+          // Distribute the difference equally among target installments
+          const diffPerInst = Number((difference / targetInsts.length).toFixed(2));
           let remainingDiff = difference;
 
-          for (let i = 0; i < pendingInsts.length; i++) {
-            const inst = pendingInsts[i];
+          for (let i = 0; i < targetInsts.length; i++) {
+            const inst = targetInsts[i];
             let applyDiff = diffPerInst;
-            if (i === pendingInsts.length - 1) {
+            if (i === targetInsts.length - 1) {
               applyDiff = Number(remainingDiff.toFixed(2));
             }
             
@@ -247,9 +246,7 @@ export const dbService = {
             } else if (inst.paidAmount > 0) {
                newStatus = 'pago_parcial';
             } else {
-               newStatus = 'pendente'; // simplistic fallback
-               // could check if overdue, but calendar UI checks if past due based on dates
-               // the status string in DB usually is pendente, pago, pago_parcial. Overdue is derived.
+               newStatus = 'pendente';
             }
 
             batch.update(doc(db, 'installments', inst.id), {
@@ -747,6 +744,61 @@ export const dbService = {
       await dbService.logActivity(`${userName} excluiu o consórcio de ${clientName}.`);
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `consortiums/${consortiumId}`);
+    }
+  },
+
+  createBoleto: async (boleto: Omit<Boleto, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'status'>): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const now = Date.now();
+      const id = generateId();
+      await setDoc(doc(db, 'boletos', id), {
+        ...boleto,
+        id,
+        userId,
+        status: 'pendente',
+        createdAt: now,
+        updatedAt: now
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'boletos');
+    }
+  },
+
+  getBoletos: async (filters?: { brand?: string }): Promise<Boleto[]> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return [];
+    try {
+      let q = query(collection(db, 'boletos'), where('userId', '==', userId));
+      const snapshot = await getDocs(q);
+      let list = snapshot.docs.map(doc => doc.data() as Boleto);
+      if (filters?.brand) list = list.filter(b => b.brand === filters.brand);
+      return list;
+    } catch (e) {
+      handleFirestoreError(e, OperationType.LIST, 'boletos');
+      return [];
+    }
+  },
+
+  updateBoleto: async (id: string, updates: Partial<Boleto>): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const ref = doc(db, 'boletos', id);
+      await updateDoc(ref, { ...updates, updatedAt: Date.now() });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `boletos/${id}`);
+    }
+  },
+
+  deleteBoleto: async (id: string): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      await deleteDoc(doc(db, 'boletos', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `boletos/${id}`);
     }
   }
 };

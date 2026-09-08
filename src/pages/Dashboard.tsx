@@ -4,7 +4,7 @@ import { parseISO, isThisWeek, isThisMonth, isSameMonth, isToday, isPast, isFutu
 import { ptBR } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Plus, AlertCircle, Clock, CheckCircle2, TrendingUp, Package, ChevronLeft, ChevronRight, Wallet, Users } from 'lucide-react';
 import { dbService } from '../services/db';
-import { Installment, Sale, Client } from '../types';
+import { Installment, Sale, Client, Boleto } from '../types';
 import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { Input } from '../components/ui/Input';
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [boletos, setBoletos] = useState<Boleto[]>([]);
   const [loading, setLoading] = useState(true);
   const [notificationPermission, setNotificationPermission] = useState<string>('unsupported');
   const [selectedMonthStr, setSelectedMonthStr] = useState(format(startOfDay(new Date()), 'yyyy-MM'));
@@ -29,14 +30,16 @@ export default function DashboardPage() {
   useEffect(() => {
     async function loadData() {
       // In a real app we'd paginate or use snapshots, but for simplicity we fetch all non-paid
-      const [allSales, allInstallments, allClients] = await Promise.all([
+      const [allSales, allInstallments, allClients, allBoletos] = await Promise.all([
         dbService.getSales(),
         dbService.getInstallments(),
-        dbService.getClients()
+        dbService.getClients(),
+        dbService.getBoletos()
       ]);
       setSales(allSales);
       setInstallments(allInstallments);
       setClients(allClients);
+      setBoletos(allBoletos);
       setLoading(false);
     }
     loadData();
@@ -54,6 +57,7 @@ export default function DashboardPage() {
   let todayTotal = 0;
   let totalEudora = 0;
   let totalTupperware = 0;
+  let pendingBoletos = 0;
   let totalToReceiveAllTime = 0;
   const overdueInst: Installment[] = [];
   const todayInst: Installment[] = [];
@@ -80,6 +84,12 @@ export default function DashboardPage() {
     } else if (inst.dueDate === todayStr) {
       todayTotal += inst.remainingAmount;
       todayInst.push(inst);
+    }
+  });
+
+  boletos.filter(b => b.status !== 'pago').forEach(boleto => {
+    if (isSameMonth(parseISO(boleto.dueDate), selectedMonth)) {
+      pendingBoletos += boleto.amount;
     }
   });
 
@@ -217,7 +227,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Eudora Pendente */}
         <div className="bg-white rounded-3xl p-6 border-l-8 border-purple-600 shadow-sm">
           <div className="flex justify-between items-start mb-4">
@@ -249,6 +259,23 @@ export default function DashboardPage() {
           </p>
           <div className="mt-4 w-full bg-teal-50 h-2 rounded-full overflow-hidden">
             <div className="bg-teal-500 h-2 rounded-full" style={{ width: '50%' }}></div>
+          </div>
+        </div>
+
+        {/* Boletos Pendentes */}
+        <div className="bg-white rounded-3xl p-6 border-l-8 border-red-600 shadow-sm">
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold uppercase">Gastos</span>
+              <h3 className="text-xl font-bold mt-2 text-slate-800">Boletos Pendentes</h3>
+            </div>
+            <span className="text-3xl">📄</span>
+          </div>
+          <p className="text-3xl font-black text-red-800">
+            {pendingBoletos.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </p>
+          <div className="mt-4 w-full bg-red-50 h-2 rounded-full overflow-hidden">
+            <div className="bg-red-500 h-2 rounded-full" style={{ width: '50%' }}></div>
           </div>
         </div>
       </div>

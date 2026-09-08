@@ -72,8 +72,16 @@ export default function SalesManager({ brand }: Props) {
     // Convert comma to dot
     const newTotal = parseFloat(editSaleTotal.replace(',', '.')) || saleToEdit.totalValue;
 
+    const saleInstallments = installments.filter(i => i.saleId === saleToEdit.id);
+    const hasOnlyOneInstallment = saleInstallments.length === 1;
+
+    let finalAction = editSaleAction;
+    if (hasOnlyOneInstallment && newTotal !== saleToEdit.totalValue) {
+      finalAction = 'redistribute';
+    }
+
     if (newTotal !== saleToEdit.totalValue) {
-       await dbService.updateSaleAdvanced(saleToEdit.id, newTotal, editSaleDesc, editSaleAction);
+       await dbService.updateSaleAdvanced(saleToEdit.id, newTotal, editSaleDesc, finalAction);
        if (editSaleDate !== saleToEdit.date) {
          await dbService.updateSale(saleToEdit.id, { date: editSaleDate });
        }
@@ -459,24 +467,32 @@ export default function SalesManager({ brand }: Props) {
                   {parseFloat(editSaleTotal.replace(',', '.')) > saleToEdit.totalValue 
                     ? `O valor total da venda aumentou em ${(parseFloat(editSaleTotal.replace(',', '.')) - saleToEdit.totalValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.` 
                     : `O valor total da venda diminuiu em ${Math.abs(parseFloat(editSaleTotal.replace(',', '.')) - saleToEdit.totalValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`}
-                  Como deseja ajustar as parcelas pendentes?
                 </p>
-                <div className="space-y-2">
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="redistribute" checked={editSaleAction === 'redistribute'} onChange={() => setEditSaleAction('redistribute')} />
-                    <span className="text-sm text-amber-900">Distribuir diferença entre parcelas pendentes</span>
-                  </label>
-                  {parseFloat(editSaleTotal.replace(',', '.')) > saleToEdit.totalValue && (
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="new_installment" checked={editSaleAction === 'new_installment'} onChange={() => setEditSaleAction('new_installment')} />
-                      <span className="text-sm text-amber-900">Criar uma nova parcela com o valor restante no próximo mês</span>
-                    </label>
-                  )}
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="none" checked={editSaleAction === 'none'} onChange={() => setEditSaleAction('none')} />
-                    <span className="text-sm text-amber-900">Não alterar as parcelas (apenas atualizar total)</span>
-                  </label>
-                </div>
+                {installments.filter(i => i.saleId === saleToEdit.id).length === 1 ? (
+                  <p className="text-sm text-amber-900 font-bold">
+                    O valor da parcela única será atualizado automaticamente.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-amber-800 font-medium">Como deseja ajustar as parcelas pendentes?</p>
+                    <div className="space-y-2">
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="redistribute" checked={editSaleAction === 'redistribute'} onChange={() => setEditSaleAction('redistribute')} />
+                        <span className="text-sm text-amber-900">Distribuir diferença entre parcelas pendentes</span>
+                      </label>
+                      {parseFloat(editSaleTotal.replace(',', '.')) > saleToEdit.totalValue && (
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="new_installment" checked={editSaleAction === 'new_installment'} onChange={() => setEditSaleAction('new_installment')} />
+                          <span className="text-sm text-amber-900">Criar uma nova parcela com o valor restante no próximo mês</span>
+                        </label>
+                      )}
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" className="mt-1 text-amber-600 focus:ring-amber-500" name="editSaleAction" value="none" checked={editSaleAction === 'none'} onChange={() => setEditSaleAction('none')} />
+                        <span className="text-sm text-amber-900">Não alterar as parcelas (apenas atualizar total)</span>
+                      </label>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
