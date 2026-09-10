@@ -137,8 +137,12 @@ export default function SalesManager({ brand }: Props) {
 
   async function handleUndoPayment(instId: string) {
     if (confirm("Deseja realmente desfazer este pagamento? A parcela voltará a ficar pendente.")) {
-      await dbService.resetInstallmentPayment(instId);
-      loadData();
+      try {
+        await dbService.resetInstallmentPayment(instId);
+        loadData();
+      } catch (e: any) {
+        alert("Erro ao desfazer pagamento: " + e.message);
+      }
     }
   }
 

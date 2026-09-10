@@ -433,6 +433,11 @@ export const dbService = {
         batch.delete(docSnap.ref);
       });
 
+      let amountToSubtractFromSale = totalDeleted;
+      if (paySnap.empty && inst.paidAmount > 0) {
+        amountToSubtractFromSale = inst.paidAmount;
+      }
+
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       let newStatus: PaymentStatus = 'pendente';
       if (inst.dueDate < todayStr) newStatus = 'atrasado';
@@ -442,7 +447,11 @@ export const dbService = {
         userId: String(inst.userId || userId),
         saleId: String(inst.saleId || 'unknown'),
         clientId: String(inst.clientId || 'unknown'),
+        brand: String(inst.brand || 'unknown'),
+        number: Number(inst.number || 1),
+        amount: Number(inst.amount || 0),
         dueDate: String(inst.dueDate || '2023-01-01'),
+        dueDateMs: Number(inst.dueDateMs || new Date(inst.dueDate || '2023-01-01').getTime()),
         createdAt: typeof inst.createdAt === 'number' ? inst.createdAt : now,
         paidAmount: 0,
         remainingAmount: Number(inst.amount),
@@ -455,7 +464,7 @@ export const dbService = {
       const saleSnap = await getDoc(saleRef);
       if (saleSnap.exists()) {
         const sale = saleSnap.data() as Sale;
-        const newSalePaid = Math.max(0, sale.paidValue - totalDeleted);
+        const newSalePaid = Math.max(0, sale.paidValue - amountToSubtractFromSale);
         const newSaleRem = Number((sale.totalValue - newSalePaid).toFixed(2));
         let newSaleStatus: PaymentStatus = 'pendente';
         if (newSaleRem === 0) newSaleStatus = 'pago';
@@ -468,6 +477,7 @@ export const dbService = {
           date: String(sale.date || '2023-01-01'),
           monthYear: String(sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01')),
           createdAt: typeof sale.createdAt === 'number' ? sale.createdAt : now,
+          totalValue: Number(sale.totalValue || 0),
           paidValue: Number(newSalePaid),
           remainingValue: Number(newSaleRem),
           status: String(newSaleStatus),
@@ -478,6 +488,7 @@ export const dbService = {
       await batch.commit();
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `installments/${instId}`);
+      throw e;
     }
   },
 
