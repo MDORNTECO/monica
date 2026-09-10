@@ -70,7 +70,7 @@ service cloud.firestore {
     match /sales/{saleId} {
       allow read: if isOwner(existing().userId);
       allow create: if isSignedIn() && isValidId(saleId) && isValidSale(incoming());
-      allow update: if isOwner(existing().userId) && isValidSale(incoming()) && incoming().userId == existing().userId && incoming().clientId == existing().clientId;
+      allow update: if isOwner(existing().userId) && isValidSale(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
       allow list: if isOwner(resource.data.userId);
     }
@@ -79,7 +79,7 @@ service cloud.firestore {
     match /installments/{installmentId} {
       allow read: if isOwner(existing().userId);
       allow create: if isSignedIn() && isValidId(installmentId) && isValidInstallment(incoming());
-      allow update: if isOwner(existing().userId) && isValidInstallment(incoming()) && incoming().userId == existing().userId && incoming().saleId == existing().saleId;
+      allow update: if isOwner(existing().userId) && isValidInstallment(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
       allow list: if isOwner(resource.data.userId);
     }
@@ -88,7 +88,7 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if isOwner(existing().userId);
       allow create: if isSignedIn() && isValidId(paymentId) && isValidPayment(incoming());
-      allow update: if isOwner(existing().userId) && isValidPayment(incoming()) && incoming().userId == existing().userId && incoming().saleId == existing().saleId;
+      allow update: if isOwner(existing().userId) && isValidPayment(incoming()) && incoming().userId == existing().userId;
       allow delete: if isOwner(existing().userId);
       allow list: if isOwner(resource.data.userId);
     }

@@ -117,8 +117,10 @@ export default function SalesManager({ brand }: Props) {
       dueDate = editInstDueDate;
     }
 
+    const newAmount = parseFloat(editInstAmount.replace(',', '.')) || instToEdit.amount;
+
     await dbService.updateInstallment(instToEdit.id, {
-      amount: parseFloat(editInstAmount) || instToEdit.amount,
+      amount: newAmount,
       dueDateMs,
       dueDate
     });
@@ -131,6 +133,13 @@ export default function SalesManager({ brand }: Props) {
     setInstToEdit(inst);
     setEditInstAmount(inst.amount.toString());
     setEditInstDueDate(format(new Date(inst.dueDateMs), 'yyyy-MM-dd'));
+  }
+
+  async function handleUndoPayment(instId: string) {
+    if (confirm("Deseja realmente desfazer este pagamento? A parcela voltará a ficar pendente.")) {
+      await dbService.resetInstallmentPayment(instId);
+      loadData();
+    }
   }
 
   const [recentlyDeleted, setRecentlyDeleted] = useState<{sale: Sale | null, installments: Installment[], payments: Payment[]} | null>(null);
@@ -317,7 +326,18 @@ export default function SalesManager({ brand }: Props) {
                               </div>
                             </div>
                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                              <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                              {inst.status === 'pago' || inst.status === 'pago_parcial' ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleUndoPayment(inst.id); }}
+                                  className="hover:opacity-80 transition-opacity"
+                                  title="Clique para desfazer o pagamento"
+                                >
+                                  <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                                </button>
+                              ) : (
+                                <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                              )}
                               <button 
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); openEditInst(inst); }}
@@ -510,7 +530,7 @@ export default function SalesManager({ brand }: Props) {
             <Input required type="date" value={editInstDueDate} onChange={e => setEditInstDueDate(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Novo Valor da Parcela (R$)</label>
+            <label className="text-sm font-medium text-slate-700">Valor da Parcela (R$)</label>
             <Input required type="number" step="0.01" min="0.01" value={editInstAmount} onChange={e => setEditInstAmount(e.target.value)} />
           </div>
           <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">

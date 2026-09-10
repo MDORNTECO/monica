@@ -189,8 +189,20 @@ export const dbService = {
     try {
       const now = Date.now();
       const saleRef = doc(db, 'sales', saleId);
+      const saleSnap = await getDoc(saleRef);
+      if (!saleSnap.exists()) return;
+      const sale = saleSnap.data() as Sale;
       const batch = writeBatch(db);
-      batch.update(saleRef, { ...updates, updatedAt: now });
+      batch.update(saleRef, { 
+        ...updates, 
+        userId: sale.userId || userId,
+        clientId: sale.clientId || 'unknown',
+        brand: sale.brand || 'unknown',
+        date: sale.date || '2023-01-01',
+        monthYear: sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01'),
+        createdAt: sale.createdAt || now,
+        updatedAt: now 
+      });
       await batch.commit();
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `sales/${saleId}`);
@@ -211,6 +223,12 @@ export const dbService = {
       
       const batch = writeBatch(db);
       batch.update(saleRef, { 
+        userId: sale.userId || userId,
+        clientId: sale.clientId || 'unknown',
+        brand: sale.brand || 'unknown',
+        date: sale.date || '2023-01-01',
+        monthYear: sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01'),
+        createdAt: sale.createdAt || now,
         totalValue: newTotal, 
         description: newDesc, 
         updatedAt: now 
@@ -250,6 +268,11 @@ export const dbService = {
             }
 
             batch.update(doc(db, 'installments', inst.id), {
+              userId: inst.userId || userId,
+              saleId: inst.saleId || 'unknown',
+              clientId: inst.clientId || 'unknown',
+              dueDate: inst.dueDate || '2023-01-01',
+              createdAt: inst.createdAt || now,
               amount: newAmount,
               remainingAmount: newRemaining,
               status: newStatus,
@@ -311,55 +334,147 @@ export const dbService = {
       if (!instSnap.exists()) return;
       const currentInst = instSnap.data() as Installment;
       
-      batch.update(instRef, { ...updates, updatedAt: now });
+      const newAmount = updates.amount !== undefined ? updates.amount : currentInst.amount;
+      const newPaidAmount = updates.paidAmount !== undefined ? (updates.paidAmount || 0) : (currentInst.paidAmount || 0);
+      const newRemaining = Math.max(0, newAmount - newPaidAmount);
+      
+      const checkDate = updates.dueDate || currentInst.dueDate;
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      
+      let newStatus: PaymentStatus = 'pendente';
+      if (newRemaining === 0) newStatus = 'pago';
+      else if (newPaidAmount > 0) newStatus = 'pago_parcial';
+      else if (checkDate < todayStr) newStatus = 'atrasado';
 
-      let needsStatusUpdate = false;
-      let newStatus = currentInst.status;
-      let remainingAmount = currentInst.remainingAmount;
+      // Fetch sale to ensure we have all required fields for validation rules
+      const saleRef = doc(db, 'sales', currentInst.saleId);
+      const saleSnap = await getDoc(saleRef);
+      const sale = saleSnap.exists() ? (saleSnap.data() as Sale) : null;
+      const validClientId = currentInst.clientId || sale?.clientId || 'unknown';
 
-      if (updates.amount !== undefined && updates.amount !== currentInst.amount) {
-          const amount = updates.amount;
-          remainingAmount = Math.max(0, amount - currentInst.paidAmount);
-          if (remainingAmount === 0) newStatus = 'pago';
-          else if (currentInst.paidAmount > 0) newStatus = 'pago_parcial';
-          else newStatus = 'pendente';
-          needsStatusUpdate = true;
+      batch.update(instRef, { 
+        ...updates, 
+        userId: String(currentInst.userId || userId),
+        saleId: String(currentInst.saleId || 'unknown'),
+        clientId: String(validClientId),
+        dueDate: String(updates.dueDate || currentInst.dueDate || '2023-01-01'),
+        createdAt: typeof currentInst.createdAt === 'number' ? currentInst.createdAt : now,
+        amount: Number(newAmount),
+        paidAmount: Number(newPaidAmount),
+        remainingAmount: Number(newRemaining),
+        status: String(newStatus),
+        updatedAt: now 
+      });
 
-          // Also update the sale's totalValue
-          const saleRef = doc(db, 'sales', currentInst.saleId);
+      // Update the Sale totals
+      if (sale && (newAmount !== currentInst.amount || newPaidAmount !== currentInst.paidAmount || newStatus !== currentInst.status)) {
           const instQ = query(collection(db, 'installments'), where('saleId', '==', currentInst.saleId));
           const allInstsSnap = await getDocs(instQ);
-          let newTotal = 0;
+          
+          let saleTotalAmount = 0;
+          let saleTotalPaid = 0;
+          
           allInstsSnap.forEach(doc => {
             if (doc.id === instId) {
-               newTotal += amount;
+               saleTotalAmount += Number(newAmount);
+               saleTotalPaid += Number(newPaidAmount);
             } else {
-               newTotal += (doc.data() as Installment).amount;
+               const docData = doc.data() as Installment;
+               saleTotalAmount += Number(docData.amount || 0);
+               saleTotalPaid += Number(docData.paidAmount || 0);
             }
           });
           
-          const saleSnap = await getDoc(saleRef);
-          if (saleSnap.exists()) {
-             const sale = saleSnap.data() as Sale;
-             const diff = amount - currentInst.amount;
-             batch.update(saleRef, { totalValue: sale.totalValue + diff, updatedAt: now });
-          }
-      }
+          const newSaleRem = Math.max(0, saleTotalAmount - saleTotalPaid);
+          let newSaleStatus: PaymentStatus = 'pendente';
+          if (newSaleRem === 0) newSaleStatus = 'pago';
+          else if (saleTotalPaid > 0) newSaleStatus = 'pago_parcial';
 
-      const checkDate = updates.dueDate || currentInst.dueDate;
-      if (newStatus !== 'pago') {
-          const todayStr = format(new Date(), 'yyyy-MM-dd');
-          const calcStatus = checkDate < todayStr ? 'atrasado' : (currentInst.paidAmount > 0 ? 'pago_parcial' : 'pendente');
-          if (calcStatus !== newStatus) {
-              newStatus = calcStatus;
-              needsStatusUpdate = true;
-          }
-      }
-
-      if (needsStatusUpdate) {
-          batch.update(instRef, { remainingAmount, status: newStatus, updatedAt: now });
+          batch.update(saleRef, { 
+            userId: String(sale.userId || userId),
+            clientId: String(sale.clientId || validClientId),
+            brand: String(sale.brand || 'unknown'),
+            date: String(sale.date || '2023-01-01'),
+            monthYear: String(sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01')),
+            createdAt: typeof sale.createdAt === 'number' ? sale.createdAt : now,
+            totalValue: Number(saleTotalAmount), 
+            paidValue: Number(saleTotalPaid),
+            remainingValue: Number(newSaleRem),
+            status: String(newSaleStatus),
+            updatedAt: now 
+          });
       }
       
+      await batch.commit();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `installments/${instId}`);
+    }
+  },
+
+  resetInstallmentPayment: async (instId: string): Promise<void> => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) throw new Error('Not logged in');
+    try {
+      const now = Date.now();
+      const instRef = doc(db, 'installments', instId);
+      const instSnap = await getDoc(instRef);
+      if (!instSnap.exists()) return;
+      const inst = instSnap.data() as Installment;
+
+      const batch = writeBatch(db);
+
+      // Find and delete all payments for this installment
+      const payQ = query(collection(db, 'payments'), where('installmentId', '==', instId));
+      const paySnap = await getDocs(payQ);
+      let totalDeleted = 0;
+      paySnap.forEach(docSnap => {
+        const p = docSnap.data() as Payment;
+        totalDeleted += p.amount;
+        batch.delete(docSnap.ref);
+      });
+
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      let newStatus: PaymentStatus = 'pendente';
+      if (inst.dueDate < todayStr) newStatus = 'atrasado';
+
+      // Update Installment
+      batch.update(instRef, {
+        userId: String(inst.userId || userId),
+        saleId: String(inst.saleId || 'unknown'),
+        clientId: String(inst.clientId || 'unknown'),
+        dueDate: String(inst.dueDate || '2023-01-01'),
+        createdAt: typeof inst.createdAt === 'number' ? inst.createdAt : now,
+        paidAmount: 0,
+        remainingAmount: Number(inst.amount),
+        status: String(newStatus),
+        updatedAt: now
+      });
+
+      // Update Sale
+      const saleRef = doc(db, 'sales', inst.saleId);
+      const saleSnap = await getDoc(saleRef);
+      if (saleSnap.exists()) {
+        const sale = saleSnap.data() as Sale;
+        const newSalePaid = Math.max(0, sale.paidValue - totalDeleted);
+        const newSaleRem = Number((sale.totalValue - newSalePaid).toFixed(2));
+        let newSaleStatus: PaymentStatus = 'pendente';
+        if (newSaleRem === 0) newSaleStatus = 'pago';
+        else if (newSalePaid > 0) newSaleStatus = 'pago_parcial';
+
+        batch.update(saleRef, {
+          userId: String(sale.userId || userId),
+          clientId: String(sale.clientId || inst.clientId || 'unknown'),
+          brand: String(sale.brand || inst.brand || 'unknown'),
+          date: String(sale.date || '2023-01-01'),
+          monthYear: String(sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01')),
+          createdAt: typeof sale.createdAt === 'number' ? sale.createdAt : now,
+          paidValue: Number(newSalePaid),
+          remainingValue: Number(newSaleRem),
+          status: String(newSaleStatus),
+          updatedAt: now
+        });
+      }
+
       await batch.commit();
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `installments/${instId}`);
@@ -503,7 +618,18 @@ export const dbService = {
 
         if (rolloverNextMonth && newRemaining > 0) {
           // Change current installment amount to match what was paid, making it fully paid
-          batch.update(instRef, { amount: newPaidAmount, paidAmount: newPaidAmount, remainingAmount: 0, status: 'pago', updatedAt: now });
+          batch.update(instRef, { 
+            userId: String(inst.userId || userId),
+            saleId: String(inst.saleId || 'unknown'),
+            clientId: String(inst.clientId || 'unknown'),
+            dueDate: String(inst.dueDate || '2023-01-01'),
+            createdAt: typeof inst.createdAt === 'number' ? inst.createdAt : now,
+            amount: Number(newPaidAmount), 
+            paidAmount: Number(newPaidAmount), 
+            remainingAmount: 0, 
+            status: String('pago'), 
+            updatedAt: now 
+          });
 
           const allInstQ = query(collection(db, 'installments'), where('userId', '==', userId), where('saleId', '==', inst.saleId));
           const allInstSnap = await getDocs(allInstQ);
@@ -521,6 +647,11 @@ export const dbService = {
 
           if (nextInst) {
             batch.update(doc(db, 'installments', nextInst.id), {
+               userId: String(nextInst.userId || userId),
+               saleId: String(nextInst.saleId || inst.saleId || 'unknown'),
+               clientId: String(nextInst.clientId || inst.clientId || 'unknown'),
+               dueDate: String(nextInst.dueDate || '2023-01-01'),
+               createdAt: typeof nextInst.createdAt === 'number' ? nextInst.createdAt : now,
                amount: Number((nextInst.amount + newRemaining).toFixed(2)),
                remainingAmount: Number((nextInst.remainingAmount + newRemaining).toFixed(2)),
                updatedAt: now
@@ -554,7 +685,17 @@ export const dbService = {
           let newStatus: PaymentStatus = 'pendente';
           if (newRemaining === 0) newStatus = 'pago';
           else if (newPaidAmount > 0) newStatus = 'pago_parcial';
-          batch.update(instRef, { paidAmount: newPaidAmount, remainingAmount: newRemaining, status: newStatus, updatedAt: now });
+          batch.update(instRef, { 
+            userId: String(inst.userId || userId),
+            saleId: String(inst.saleId || 'unknown'),
+            clientId: String(inst.clientId || 'unknown'),
+            dueDate: String(inst.dueDate || '2023-01-01'),
+            createdAt: typeof inst.createdAt === 'number' ? inst.createdAt : now,
+            paidAmount: Number(newPaidAmount), 
+            remainingAmount: Number(newRemaining), 
+            status: String(newStatus), 
+            updatedAt: now 
+          });
         }
       }
 
@@ -570,7 +711,18 @@ export const dbService = {
         else if (newSalePaid > 0) newSaleStatus = 'pago_parcial';
         
         // Rollover doesn't affect the sale's total value, just shifts the installment
-        batch.update(saleRef, { paidValue: newSalePaid, remainingValue: newSaleRem, status: newSaleStatus, updatedAt: now });
+        batch.update(saleRef, { 
+          userId: String(sale.userId || userId),
+          clientId: String(sale.clientId || installment.clientId || 'unknown'),
+          brand: String(sale.brand || installment.brand || 'unknown'),
+          date: String(sale.date || '2023-01-01'),
+          monthYear: String(sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01')),
+          createdAt: typeof sale.createdAt === 'number' ? sale.createdAt : now,
+          paidValue: Number(newSalePaid), 
+          remainingValue: Number(newSaleRem), 
+          status: String(newSaleStatus), 
+          updatedAt: now 
+        });
       }
 
       await batch.commit();

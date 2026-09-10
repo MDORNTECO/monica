@@ -10,6 +10,12 @@ import { cn } from '../lib/utils';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
 
+const safeParseISO = (dateStr?: string) => {
+  if (!dateStr) return new Date();
+  const parsed = parseISO(dateStr);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+};
+
 export default function DashboardPage() {
   const [installments, setInstallments] = useState<Installment[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -22,25 +28,33 @@ export default function DashboardPage() {
   const [monthModalTab, setMonthModalTab] = useState<'all' | 'eudora' | 'tupperware'>('all');
 
   useEffect(() => {
-    if ('Notification' in window) {
-      setNotificationPermission(Notification.permission);
+    try {
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        setNotificationPermission(Notification.permission);
+      }
+    } catch (e) {
+      console.warn('Notifications not supported', e);
     }
   }, []);
 
   useEffect(() => {
     async function loadData() {
-      // In a real app we'd paginate or use snapshots, but for simplicity we fetch all non-paid
-      const [allSales, allInstallments, allClients, allBoletos] = await Promise.all([
-        dbService.getSales(),
-        dbService.getInstallments(),
-        dbService.getClients(),
-        dbService.getBoletos()
-      ]);
-      setSales(allSales);
-      setInstallments(allInstallments);
-      setClients(allClients);
-      setBoletos(allBoletos);
-      setLoading(false);
+      try {
+        const [allSales, allInstallments, allClients, allBoletos] = await Promise.all([
+          dbService.getSales(),
+          dbService.getInstallments(),
+          dbService.getClients(),
+          dbService.getBoletos()
+        ]);
+        setSales(allSales);
+        setInstallments(allInstallments);
+        setClients(allClients);
+        setBoletos(allBoletos);
+      } catch (err) {
+        console.error("Error loading dashboard data", err);
+      } finally {
+        setLoading(false);
+      }
     }
     loadData();
   }, []);
@@ -66,7 +80,7 @@ export default function DashboardPage() {
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
   pendingInst.forEach(inst => {
-    const due = parseISO(inst.dueDate);
+    const due = safeParseISO(inst.dueDate);
     
     totalToReceiveAllTime += inst.remainingAmount;
 
@@ -88,7 +102,7 @@ export default function DashboardPage() {
   });
 
   boletos.filter(b => b.status !== 'pago').forEach(boleto => {
-    if (isSameMonth(parseISO(boleto.dueDate), selectedMonth)) {
+    if (isSameMonth(safeParseISO(boleto.dueDate), selectedMonth)) {
       pendingBoletos += boleto.amount;
     }
   });
@@ -107,16 +121,20 @@ export default function DashboardPage() {
       };
 
       if (!localStorage.getItem(notifiedKey)) {
-        if ('Notification' in window) {
-          if (Notification.permission === 'granted') {
-            sendNotification();
-          } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-              if (permission === 'granted') {
-                sendNotification();
-              }
-            });
+        try {
+          if (typeof window !== 'undefined' && 'Notification' in window) {
+            if (Notification.permission === 'granted') {
+              sendNotification();
+            } else if (Notification.permission !== 'denied') {
+              Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                  sendNotification();
+                }
+              }).catch(e => console.warn('Notification permission error', e));
+            }
           }
+        } catch (e) {
+          console.warn('Notifications not supported', e);
         }
       }
     }
@@ -131,15 +149,21 @@ export default function DashboardPage() {
           <p className="text-sm font-medium">Ative as notificações para receber alertas de pagamentos do dia!</p>
           <button 
             onClick={() => {
-              Notification.requestPermission().then(perm => {
-                setNotificationPermission(perm);
-                if (perm === 'granted') {
-                  new Notification('Notificações Ativadas! 🎉', {
-                    body: 'Avisaremos você quando tiver recebimentos.',
-                    icon: '/favicon.ico',
-                  });
+              try {
+                if (typeof window !== 'undefined' && 'Notification' in window) {
+                  Notification.requestPermission().then(perm => {
+                    setNotificationPermission(perm);
+                    if (perm === 'granted') {
+                      new Notification('Notificações Ativadas! 🎉', {
+                        body: 'Avisaremos você quando tiver recebimentos.',
+                        icon: '/favicon.ico',
+                      });
+                    }
+                  }).catch(e => console.warn('Notification error', e));
                 }
-              });
+              } catch (e) {
+                console.warn('Notifications not supported', e);
+              }
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-colors whitespace-nowrap"
           >
@@ -368,7 +392,7 @@ export default function DashboardPage() {
                const clientB = clients.find(c => c.id === b.clientId)?.name.toLowerCase() || '';
                if (clientA < clientB) return -1;
                if (clientA > clientB) return 1;
-               return parseISO(a.dueDate).getTime() - parseISO(b.dueDate).getTime();
+               return safeParseISO(a.dueDate).getTime() - safeParseISO(b.dueDate).getTime();
             });
 
             return (
@@ -386,7 +410,7 @@ export default function DashboardPage() {
                            <span className="mx-1.5">•</span>
                            Parcela Nº {inst.number}
                            <span className="mx-1.5">•</span>
-                           Venc: <span className="font-medium text-slate-600">{format(parseISO(inst.dueDate), 'dd/MM')}</span>
+                           Venc: <span className="font-medium text-slate-600">{format(safeParseISO(inst.dueDate), 'dd/MM')}</span>
                          </p>
                        </div>
                        <div className="text-right">
