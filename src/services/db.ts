@@ -433,9 +433,10 @@ export const dbService = {
         batch.delete(docSnap.ref);
       });
 
+      const amountToUse = parseFloat(String(inst.amount).replace(',', '.')) || 0;
       let amountToSubtractFromSale = totalDeleted;
       if (paySnap.empty && inst.paidAmount > 0) {
-        amountToSubtractFromSale = inst.paidAmount;
+        amountToSubtractFromSale = parseFloat(String(inst.paidAmount).replace(',', '.')) || 0;
       }
 
       const todayStr = format(new Date(), 'yyyy-MM-dd');
@@ -449,12 +450,12 @@ export const dbService = {
         clientId: String(inst.clientId || 'unknown'),
         brand: String(inst.brand || 'unknown'),
         number: Number(inst.number || 1),
-        amount: Number(inst.amount || 0),
+        amount: amountToUse,
         dueDate: String(inst.dueDate || '2023-01-01'),
         dueDateMs: Number(inst.dueDateMs || new Date(inst.dueDate || '2023-01-01').getTime()),
         createdAt: typeof inst.createdAt === 'number' ? inst.createdAt : now,
         paidAmount: 0,
-        remainingAmount: Number(inst.amount),
+        remainingAmount: amountToUse,
         status: String(newStatus),
         updatedAt: now
       });
@@ -464,8 +465,11 @@ export const dbService = {
       const saleSnap = await getDoc(saleRef);
       if (saleSnap.exists()) {
         const sale = saleSnap.data() as Sale;
-        const newSalePaid = Math.max(0, sale.paidValue - amountToSubtractFromSale);
-        const newSaleRem = Number((sale.totalValue - newSalePaid).toFixed(2));
+        const safeSaleTotal = parseFloat(String(sale.totalValue).replace(',', '.')) || 0;
+        const safeSalePaid = parseFloat(String(sale.paidValue).replace(',', '.')) || 0;
+
+        const newSalePaid = Math.max(0, safeSalePaid - amountToSubtractFromSale);
+        const newSaleRem = Number((safeSaleTotal - newSalePaid).toFixed(2));
         let newSaleStatus: PaymentStatus = 'pendente';
         if (newSaleRem === 0) newSaleStatus = 'pago';
         else if (newSalePaid > 0) newSaleStatus = 'pago_parcial';
@@ -477,7 +481,7 @@ export const dbService = {
           date: String(sale.date || '2023-01-01'),
           monthYear: String(sale.monthYear || (sale.date ? sale.date.substring(0, 7) : '2023-01')),
           createdAt: typeof sale.createdAt === 'number' ? sale.createdAt : now,
-          totalValue: Number(sale.totalValue || 0),
+          totalValue: safeSaleTotal,
           paidValue: Number(newSalePaid),
           remainingValue: Number(newSaleRem),
           status: String(newSaleStatus),

@@ -29,10 +29,10 @@ service cloud.firestore {
     function isValidSale(data) {
       return data.keys().hasAll(['userId', 'clientId', 'brand', 'date', 'monthYear', 'totalValue', 'createdAt', 'updatedAt']) &&
              data.userId == request.auth.uid &&
-             data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128 &&
-             data.brand is string && data.brand.size() <= 50 &&
-             data.date is string && data.date.size() <= 50 &&
-             data.monthYear is string && data.monthYear.size() <= 50 &&
+             data.clientId is string &&
+             data.brand is string &&
+             data.date is string &&
+             data.monthYear is string &&
              data.totalValue is number && data.totalValue >= 0 &&
              data.createdAt is number && data.updatedAt is number;
     }
@@ -40,10 +40,10 @@ service cloud.firestore {
     function isValidInstallment(data) {
       return data.keys().hasAll(['userId', 'saleId', 'clientId', 'amount', 'dueDate', 'createdAt', 'updatedAt']) &&
              data.userId == request.auth.uid &&
-             data.saleId is string && data.saleId.size() > 0 && data.saleId.size() <= 128 &&
-             data.clientId is string && data.clientId.size() > 0 && data.clientId.size() <= 128 &&
+             data.saleId is string &&
+             data.clientId is string &&
              (data.amount is number || data.amount is string) &&
-             data.dueDate is string && data.dueDate.size() <= 60 &&
+             data.dueDate is string &&
              data.createdAt is number && data.updatedAt is number;
     }
 
