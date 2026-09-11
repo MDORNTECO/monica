@@ -174,7 +174,7 @@ export default function CalendarPage() {
                       ) : (
                         <p className="font-bold text-slate-800">{inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                       )}
-                      <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                      <StatusBadge status={inst.status} remainingAmount={inst.remainingAmount} />
                     </div>
                   </div>
                 );
@@ -187,14 +187,14 @@ export default function CalendarPage() {
   );
 }
 
-function StatusBadge({ status, paidAmount }: { status: string, paidAmount?: number }) {
+function StatusBadge({ status, remainingAmount }: { status: string, remainingAmount?: number }) {
   let color = 'text-slate-500';
   let text = 'Desconhecido';
   if (status === 'pendente') { color = 'text-amber-500'; text = 'Pendente'; }
   if (status === 'pago') { color = 'text-green-500'; text = 'Pago'; }
   if (status === 'pago_parcial') { 
     color = 'text-blue-500'; 
-    text = paidAmount ? `Ent./Pago: ${paidAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
+    text = remainingAmount !== undefined ? `Restante: ${remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
   }
   if (status === 'atrasado') { color = 'text-red-500'; text = 'Atrasado'; }
 

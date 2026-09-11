@@ -272,7 +272,7 @@ export default function SalesManager({ brand }: Props) {
                       <p className="text-xs text-slate-500">{sale.installmentsCount}x no {sale.paymentMethod}</p>
                     </div>
                     <div className="text-right mr-4">
-                      <StatusBadge status={sale.status} paidAmount={sale.paidValue} />
+                      <StatusBadge status={sale.status} remainingAmount={sale.remainingValue} />
                       <p className="text-xs text-slate-500 mt-1 sm:hidden">{sale.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -337,10 +337,10 @@ export default function SalesManager({ brand }: Props) {
                                   className="hover:opacity-80 transition-opacity"
                                   title="Clique para desfazer o pagamento"
                                 >
-                                  <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                                  <StatusBadge status={inst.status} remainingAmount={inst.remainingAmount} />
                                 </button>
                               ) : (
-                                <StatusBadge status={inst.status} paidAmount={inst.paidAmount} />
+                                <StatusBadge status={inst.status} remainingAmount={inst.remainingAmount} />
                               )}
                               <button 
                                 type="button"
@@ -547,14 +547,14 @@ export default function SalesManager({ brand }: Props) {
   );
 }
 
-function StatusBadge({ status, paidAmount }: { status: string, paidAmount?: number }) {
+function StatusBadge({ status, remainingAmount }: { status: string, remainingAmount?: number }) {
   let color = 'bg-slate-100 text-slate-700';
   let text = 'Desconhecido';
   if (status === 'pendente') { color = 'bg-amber-100 text-amber-700'; text = 'Pendente'; }
   if (status === 'pago') { color = 'bg-green-100 text-green-700'; text = 'Pago'; }
   if (status === 'pago_parcial') { 
     color = 'bg-blue-100 text-blue-700'; 
-    text = paidAmount ? `Entrada/Pago: ${paidAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
+    text = remainingAmount !== undefined ? `Restante: ${remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
   }
   if (status === 'atrasado') { color = 'bg-red-100 text-red-700'; text = 'Atrasado'; }
 

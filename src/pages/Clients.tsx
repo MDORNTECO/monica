@@ -262,7 +262,7 @@ const SaleCard: React.FC<{ sale: Sale }> = ({ sale }) => {
         <p className="text-xs text-slate-500">Registrada em {new Date(sale.date).toLocaleDateString('pt-BR')} • {sale.installmentsCount} parcelas</p>
       </div>
       <div className="text-right flex items-center justify-between sm:block mt-2 sm:mt-0">
-        <StatusBadge status={sale.status} paidAmount={sale.paidValue} />
+        <StatusBadge status={sale.status} remainingAmount={sale.remainingValue} />
         <div className="mt-1">
           <p className="text-xs text-slate-500">Restante</p>
           <p className="font-bold text-slate-800">{sale.remainingValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
@@ -272,14 +272,14 @@ const SaleCard: React.FC<{ sale: Sale }> = ({ sale }) => {
   );
 }
 
-function StatusBadge({ status, paidAmount }: { status: string, paidAmount?: number }) {
+function StatusBadge({ status, remainingAmount }: { status: string, remainingAmount?: number }) {
   let color = 'bg-slate-100 text-slate-700';
   let text = 'Desconhecido';
   if (status === 'pendente') { color = 'bg-amber-100 text-amber-700'; text = 'Pendente'; }
   if (status === 'pago') { color = 'bg-green-100 text-green-700'; text = 'Pago'; }
   if (status === 'pago_parcial') { 
     color = 'bg-blue-100 text-blue-700'; 
-    text = paidAmount ? `Ent./Pago: ${paidAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
+    text = remainingAmount !== undefined ? `Restante: ${remainingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'Pago Parcial'; 
   }
   if (status === 'atrasado') { color = 'bg-red-100 text-red-700'; text = 'Atrasado'; }
 
