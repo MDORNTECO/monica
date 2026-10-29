@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { SeasonalProvider, useSeasonal } from './contexts/SeasonalContext';
 import { Home, Calendar as CalendarIcon, Users, Package, LogOut, UserCog, BarChart3 } from 'lucide-react';
 import { cn } from './lib/utils';
 import DashboardPage from './pages/Dashboard';
@@ -16,12 +15,6 @@ import ActivityLogPage from './pages/ActivityLog';
 import BoletosPage from './pages/Boletos';
 import Login from './pages/Login';
 
-import { SeasonalLights } from './components/seasonal/SeasonalLights';
-import { SeasonalSnow } from './components/seasonal/SeasonalSnow';
-import { SeasonalModal } from './components/seasonal/SeasonalModal';
-import { SeasonalButton } from './components/seasonal/SeasonalButton';
-import { SantaHat } from './components/seasonal/SantaHat';
-
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="p-8 text-center text-slate-500">Carregando...</div>;
@@ -32,10 +25,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function Layout({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuth();
   const location = useLocation();
-  const { settings } = useSeasonal();
-
-  const isChristmasOrMixed = settings.mode === 'christmas' || settings.mode === 'mixed';
-  const isNewYear = settings.mode === 'newyear';
 
   const links = [
     { to: "/", icon: Home, label: "Dashboard" },
@@ -51,30 +40,13 @@ function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans relative">
-      {/* Seasonal Ambient Effects (Lights, Snow, Modal) */}
-      <SeasonalLights />
-      <SeasonalSnow />
-      <SeasonalModal />
-
+    <div className="flex h-screen w-full bg-slate-50 dark:bg-slate-900 overflow-hidden font-sans">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 flex-col bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 z-10">
         <div className="p-6">
-          <div className="relative inline-block">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-700 to-teal-600 bg-clip-text text-transparent">
-              Minha Agenda
-            </h1>
-            {isChristmasOrMixed && (
-              <div className="absolute -top-3.5 -left-2.5 pointer-events-none select-none">
-                <SantaHat className="w-5 h-5 -rotate-12 drop-shadow-xs" />
-              </div>
-            )}
-            {isNewYear && (
-              <span className="absolute -top-2.5 -right-3 text-sm pointer-events-none select-none animate-pulse">
-                ✨
-              </span>
-            )}
-          </div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-700 to-teal-600 bg-clip-text text-transparent">
+            Minha Agenda
+          </h1>
           <p className="text-xs text-slate-400 uppercase tracking-widest mt-1 font-semibold">
             Controle de Vendas
           </p>
@@ -120,10 +92,7 @@ function Layout({ children }: { children: React.ReactNode }) {
             })}
           </div>
 
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 space-y-2 mt-4">
-            {/* Ambient Festive Settings Button */}
-            <SeasonalButton variant="sidebar" />
-
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 mt-4">
             <button
               onClick={signOut}
               className="w-full flex items-center space-x-3 p-2.5 rounded-xl transition-colors text-slate-600 dark:text-slate-400 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-300 text-left text-sm"
@@ -162,8 +131,6 @@ function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* Festive button on mobile */}
-        <SeasonalButton variant="mobile" />
 
         <button
           onClick={signOut}
@@ -180,23 +147,21 @@ function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <AuthProvider>
-      <SeasonalProvider>
-        <Router>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
-            <Route path="/analysis" element={<PrivateRoute><AnalysisPage /></PrivateRoute>} />
-            <Route path="/eudora" element={<PrivateRoute><EudoraPage /></PrivateRoute>} />
-            <Route path="/tupperware" element={<PrivateRoute><TupperwarePage /></PrivateRoute>} />
-            <Route path="/boletos" element={<PrivateRoute><BoletosPage /></PrivateRoute>} />
-            <Route path="/clients" element={<PrivateRoute><ClientsPage /></PrivateRoute>} />
-            <Route path="/manage-clients" element={<PrivateRoute><ManageClientsPage /></PrivateRoute>} />
-            <Route path="/calendar" element={<PrivateRoute><CalendarPage /></PrivateRoute>} />
-            <Route path="/consortium" element={<PrivateRoute><ConsortiumPage /></PrivateRoute>} />
-            <Route path="/activity" element={<PrivateRoute><ActivityLogPage /></PrivateRoute>} />
-          </Routes>
-        </Router>
-      </SeasonalProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
+          <Route path="/analysis" element={<PrivateRoute><AnalysisPage /></PrivateRoute>} />
+          <Route path="/eudora" element={<PrivateRoute><EudoraPage /></PrivateRoute>} />
+          <Route path="/tupperware" element={<PrivateRoute><TupperwarePage /></PrivateRoute>} />
+          <Route path="/boletos" element={<PrivateRoute><BoletosPage /></PrivateRoute>} />
+          <Route path="/clients" element={<PrivateRoute><ClientsPage /></PrivateRoute>} />
+          <Route path="/manage-clients" element={<PrivateRoute><ManageClientsPage /></PrivateRoute>} />
+          <Route path="/calendar" element={<PrivateRoute><CalendarPage /></PrivateRoute>} />
+          <Route path="/consortium" element={<PrivateRoute><ConsortiumPage /></PrivateRoute>} />
+          <Route path="/activity" element={<PrivateRoute><ActivityLogPage /></PrivateRoute>} />
+        </Routes>
+      </Router>
     </AuthProvider>
   );
 }
