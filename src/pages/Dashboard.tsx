@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { cn } from '../lib/utils';
 import { Input } from '../components/ui/Input';
 import { Modal } from '../components/ui/Modal';
+import { SeasonalCountdownWidget } from '../components/seasonal/SeasonalCountdownWidget';
 
 const safeParseISO = (dateStr?: string) => {
   if (!dateStr) return new Date();
@@ -171,6 +172,9 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* Ambientação de Fim de Ano: Contagem e Mensagem Festiva */}
+      <SeasonalCountdownWidget />
 
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-gradient-to-r from-indigo-600 to-purple-600 p-6 rounded-2xl shadow-sm text-white">
         <div>
